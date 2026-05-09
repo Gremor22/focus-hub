@@ -833,6 +833,53 @@ body.light-theme .modal { background: var(--bg2); }
   50% { transform:scale(1.02); background:var(--lime-dim); }
   100% { transform:scale(1); }
 }
+.ritual-progress {
+  font-family:var(--mono);
+  font-size:0.72rem;
+  color:var(--text3);
+  margin-bottom:12px;
+}
+.ritual-list { display:grid; gap:8px; }
+.ritual-item {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 11px;
+  border:1px solid var(--line2);
+  border-radius:var(--r);
+  background:var(--bg3);
+}
+.ritual-item input[type="checkbox"] {
+  width:18px;
+  height:18px;
+  margin:0;
+  flex-shrink:0;
+  accent-color:var(--lime);
+}
+.ritual-text { flex:1; min-width:0; font-size:0.86rem; font-weight:700; color:var(--text); }
+.ritual-item.done .ritual-text { color:var(--text3); text-decoration:line-through; }
+.ritual-chip {
+  flex-shrink:0;
+  font-family:var(--mono);
+  font-size:0.64rem;
+  color:var(--text3);
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:3px 7px;
+  background:var(--bg2);
+}
+.ritual-manage-list { display:grid; gap:10px; margin-top:12px; }
+.ritual-manage-row {
+  display:grid;
+  grid-template-columns:minmax(160px,1fr) 130px auto auto;
+  gap:8px;
+  align-items:center;
+}
+.ritual-manage-row input[type="checkbox"] {
+  width:18px;
+  height:18px;
+  justify-self:center;
+}
 .notification-note {
   margin-top:10px;
   font-size:0.74rem;
@@ -1330,6 +1377,8 @@ body.light-theme .modal { background: var(--bg2); }
   .daily-task-actions .btn-red { grid-column:1 / -1; margin-top:4px; }
   .daily-task-actions .btn { width:auto; flex:1 1 calc(50% - 6px); }
   .reminder-row { grid-template-columns:1fr; }
+  .ritual-manage-row { grid-template-columns:1fr; align-items:stretch; }
+  .ritual-manage-row input[type="checkbox"] { justify-self:start; }
   .daily-lane.is-empty { display:none; }
   #start-finish-stats.kpi-inline { grid-template-columns:repeat(3, minmax(0, 1fr)) !important; gap:8px; }
   #start-finish-stats .hub-stat { padding:10px 8px; }
@@ -1507,6 +1556,12 @@ body.light-theme .modal { background: var(--bg2); }
                 <button class="btn btn-lime" onclick="addDailyTask()">+ Dodaj do listy</button>
                                 <button class="btn btn-ghost" onclick="clearDoneDailyTasks()">Usuń zrobione</button>
               </div>
+            </div>
+
+            <div class="daily-card" style="margin-top:16px;">
+              <div class="sub-label">Rytuały</div>
+              <div class="ritual-progress" id="daily-ritual-progress">0 / 0</div>
+              <div class="ritual-list" id="daily-ritual-list"></div>
             </div>
 
             <div class="daily-card daily-list-card">
@@ -1813,6 +1868,28 @@ body.light-theme .modal { background: var(--bg2); }
                   </span>
                 </label>
               </div>
+            </div>
+            <div class="daily-card" style="margin-top:16px;">
+              <div class="sub-label">Rytuały</div>
+              <div class="stat-note">Stałe codzienne rzeczy widoczne osobno na stronie Dziś.</div>
+              <div class="row2" style="margin-top:12px;">
+                <div class="field">
+                  <label class="fl">Nowy rytuał</label>
+                  <input type="text" id="ritual-new-text" placeholder="np. Anki">
+                </div>
+                <div class="field">
+                  <label class="fl">Pora dnia</label>
+                  <select id="ritual-new-time">
+                    <option value="any">Dowolnie</option>
+                    <option value="morning">Rano</option>
+                    <option value="evening">Wieczór</option>
+                  </select>
+                </div>
+              </div>
+              <div class="modal-footer" style="margin-top:0;justify-content:flex-start;">
+                <button class="btn btn-lime" type="button" onclick="addRitual()">Dodaj rytuał</button>
+              </div>
+              <div class="ritual-manage-list" id="ritual-manage-list"></div>
             </div>
           </div>
           <div>
@@ -2287,6 +2364,8 @@ function defaultState() {
     pride: [],
     journal: [],
     daily: [],
+    rituals: [],
+    ritualLog: {},
     morningFocus: {},
     weeklyReview: [],
     dailyPriority: {}
@@ -2304,6 +2383,8 @@ function hydrateState(raw) {
     pride: Array.isArray(src.pride) ? src.pride : base.pride,
     journal: Array.isArray(src.journal) ? src.journal : base.journal,
     daily: Array.isArray(src.daily) ? src.daily : base.daily,
+    rituals: Array.isArray(src.rituals) ? src.rituals : base.rituals,
+    ritualLog: src.ritualLog && typeof src.ritualLog === 'object' ? src.ritualLog : base.ritualLog,
     morningFocus: src.morningFocus && typeof src.morningFocus === 'object' ? src.morningFocus : base.morningFocus,
     weeklyReview: Array.isArray(src.weeklyReview) ? src.weeklyReview : base.weeklyReview,
     dailyPriority: src.dailyPriority && typeof src.dailyPriority === 'object' ? src.dailyPriority : base.dailyPriority
@@ -2366,6 +2447,19 @@ function normalizeStateShape(state = D) {
     closeNote: j.closeNote || '',
     createdAt: j.createdAt || new Date().toISOString()
   })) : [];
+  S.rituals = Array.isArray(S.rituals) ? S.rituals.map((r, idx) => ({
+    id: String(r.id || Date.now() + idx),
+    text: r.text || r.name || '',
+    timeOfDay: ['morning','evening','any'].includes(r.timeOfDay) ? r.timeOfDay : 'any',
+    active: r.active !== false,
+    createdAt: r.createdAt || new Date().toISOString()
+  })).filter(r => r.text) : [];
+  S.ritualLog = (S.ritualLog && typeof S.ritualLog === 'object') ? Object.fromEntries(Object.entries(S.ritualLog).map(([date, value]) => {
+    const day = toIso(date);
+    const raw = value && typeof value === 'object' ? value : {};
+    const normalized = Object.fromEntries(Object.entries(raw).filter(([, done]) => !!done).map(([id]) => [String(id), true]));
+    return [day, normalized];
+  }).filter(([date]) => !!date)) : {};
   S.pride = Array.isArray(S.pride) ? S.pride : [];
   S.morningFocus = (S.morningFocus && typeof S.morningFocus === 'object') ? S.morningFocus : {};
   S.weeklyReview = Array.isArray(S.weeklyReview) ? S.weeklyReview.map((entry, idx) => ({
@@ -4291,8 +4385,11 @@ function journalEntriesSorted() {
 function escapeHtml(str) {
   return String(str ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 }
+function escapeJsString(str) {
+  return String(str ?? '').replaceAll('\\', '\\\\').replaceAll("'", "\\'");
+}
 function hasAnyData() {
-  return !!(D.projects.length || D.pride.length || (D.journal || []).length || (D.daily || []).length);
+  return !!(D.projects.length || D.pride.length || (D.journal || []).length || (D.daily || []).length || (D.rituals || []).length);
 }
 function daysSinceBackup() {
   if (!D.settings.lastBackupAt) return 999;
@@ -4632,6 +4729,51 @@ function todayDailyTasks() {
     (a.createdAt || '').localeCompare(b.createdAt || '')
   );
 }
+function ritualTimeLabel(value = 'any') {
+  if (value === 'morning') return 'rano';
+  if (value === 'evening') return 'wieczór';
+  return 'dowolnie';
+}
+function activeRituals() {
+  return (D.rituals || []).filter(ritual => ritual.active !== false);
+}
+function ritualDone(date, ritualId) {
+  return !!D.ritualLog?.[date]?.[ritualId];
+}
+function setRitualDone(date, ritualId, done) {
+  D.ritualLog = D.ritualLog || {};
+  D.ritualLog[date] = D.ritualLog[date] || {};
+  if (done) D.ritualLog[date][ritualId] = true;
+  else delete D.ritualLog[date][ritualId];
+  if (!Object.keys(D.ritualLog[date]).length) delete D.ritualLog[date];
+}
+function renderDailyRituals() {
+  const list = document.getElementById('daily-ritual-list');
+  const progress = document.getElementById('daily-ritual-progress');
+  if (!list || !progress) return;
+  const date = getDailySelectedDate();
+  const rituals = activeRituals();
+  const doneCount = rituals.filter(ritual => ritualDone(date, ritual.id)).length;
+  progress.textContent = `${doneCount} / ${rituals.length}`;
+  if (!rituals.length) {
+    list.innerHTML = `<div style="color:var(--text3);font-size:0.78rem;">Dodaj rytuały w Konto.</div>`;
+    return;
+  }
+  list.innerHTML = rituals.map(ritual => {
+    const done = ritualDone(date, ritual.id);
+    return `<label class="ritual-item ${done ? 'done' : ''}">
+      <input type="checkbox" ${done ? 'checked' : ''} onchange="toggleRitual('${escapeJsString(ritual.id)}')">
+      <span class="ritual-text">${escapeHtml(ritual.text)}</span>
+      <span class="ritual-chip">${ritualTimeLabel(ritual.timeOfDay)}</span>
+    </label>`;
+  }).join('');
+}
+function toggleRitual(id) {
+  const date = getDailySelectedDate();
+  setRitualDone(date, id, !ritualDone(date, id));
+  save();
+  renderDailyRituals();
+}
 function dailyTaskHTML(task) {
   const project = task.projectId ? D.projects.find(p => p.id === task.projectId) : null;
   const stateText = task.done ? 'zrobione' : 'otwarte';
@@ -4691,6 +4833,7 @@ function renderDaily() {
       : (lastFrom ? `Ostatnio sprawdzono otwarte zadania z: ${lastFrom}.` : 'Otwarte zadania z poprzedniego dnia mogą być automatycznie przenoszone na dziś.');
   }
   renderDailyPriorityCard(tasks);
+  renderDailyRituals();
   renderMorningFocusPanel();
   renderStartFinishStats();
   maybePromptDayClose(selected, { source:'render' });
@@ -5727,6 +5870,75 @@ function updateFeatureVisibility() {
   const focusCard = document.getElementById('morning-focus-card'); if (focusCard) focusCard.style.display = D.settings.showMorningFocus ? '' : 'none';
   const startFinishCard = document.getElementById('start-finish-card'); if (startFinishCard) startFinishCard.style.display = (D.settings.appMode !== 'minimal' && D.settings.showAdvancedStats) ? '' : 'none';
 }
+function renderRitualManager() {
+  const wrap = document.getElementById('ritual-manage-list');
+  if (!wrap) return;
+  const rituals = D.rituals || [];
+  if (!rituals.length) {
+    wrap.innerHTML = '<div class="stat-note">Nie masz jeszcze rytuałów.</div>';
+    return;
+  }
+  wrap.innerHTML = rituals.map(ritual => `<div class="ritual-manage-row">
+    <input type="text" id="ritual-text-${escapeHtml(ritual.id)}" value="${escapeHtml(ritual.text)}">
+    <select id="ritual-time-${escapeHtml(ritual.id)}">
+      <option value="any" ${ritual.timeOfDay === 'any' ? 'selected' : ''}>Dowolnie</option>
+      <option value="morning" ${ritual.timeOfDay === 'morning' ? 'selected' : ''}>Rano</option>
+      <option value="evening" ${ritual.timeOfDay === 'evening' ? 'selected' : ''}>Wieczór</option>
+    </select>
+    <label class="setting-option" style="margin:0;">
+      <input type="checkbox" id="ritual-active-${escapeHtml(ritual.id)}" ${ritual.active !== false ? 'checked' : ''}>
+      <span class="setting-option-copy"><span class="setting-option-title">Aktywny</span></span>
+    </label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" type="button" onclick="updateRitual('${escapeJsString(ritual.id)}')">Zapisz</button>
+      <button class="btn btn-red btn-sm" type="button" onclick="deleteRitual('${escapeJsString(ritual.id)}')">Usuń</button>
+    </div>
+  </div>`).join('');
+}
+function addRitual() {
+  const textEl = document.getElementById('ritual-new-text');
+  const timeEl = document.getElementById('ritual-new-time');
+  const text = textEl?.value.trim() || '';
+  if (!text) { toast('Wpisz nazwę rytuału.'); return; }
+  D.rituals = D.rituals || [];
+  D.rituals.push({
+    id: String(Date.now()) + Math.random().toString(36).slice(2,5),
+    text,
+    timeOfDay: ['morning','evening','any'].includes(timeEl?.value) ? timeEl.value : 'any',
+    active: true,
+    createdAt: new Date().toISOString()
+  });
+  save();
+  if (textEl) textEl.value = '';
+  if (timeEl) timeEl.value = 'any';
+  renderAccount();
+  if (document.querySelector('.page.on')?.id === 'page-daily') renderDaily();
+  toast('Dodano rytuał.');
+}
+function updateRitual(id) {
+  const ritual = (D.rituals || []).find(item => String(item.id) === String(id));
+  if (!ritual) return;
+  const text = document.getElementById(`ritual-text-${String(id)}`)?.value.trim() || '';
+  if (!text) { toast('Nazwa rytuału nie może być pusta.'); return; }
+  const timeOfDay = document.getElementById(`ritual-time-${String(id)}`)?.value || 'any';
+  ritual.text = text;
+  ritual.timeOfDay = ['morning','evening','any'].includes(timeOfDay) ? timeOfDay : 'any';
+  ritual.active = !!document.getElementById(`ritual-active-${String(id)}`)?.checked;
+  save();
+  renderAccount();
+  if (document.querySelector('.page.on')?.id === 'page-daily') renderDaily();
+  toast('Zapisano rytuał.');
+}
+function deleteRitual(id) {
+  const ritual = (D.rituals || []).find(item => String(item.id) === String(id));
+  if (!ritual) return;
+  if (!confirm(`Usunąć rytuał "${ritual.text}"?`)) return;
+  D.rituals = (D.rituals || []).filter(item => String(item.id) !== String(id));
+  save();
+  renderAccount();
+  if (document.querySelector('.page.on')?.id === 'page-daily') renderDaily();
+  toast('Usunięto rytuał.');
+}
 function renderAccount() {
   const emailEl = document.getElementById('account-email');
   const syncEl = document.getElementById('account-sync-text');
@@ -5747,6 +5959,7 @@ function renderAccount() {
   const eot = document.getElementById('settings-evening-open-tasks-time'); if (eot) eot.value = D.settings.eveningReminderTime || '19:00';
   const bd = document.getElementById('settings-badge-enabled'); if (bd) bd.checked = !!D.settings.badgeEnabled;
   syncThemeForm();
+  renderRitualManager();
   syncNotificationUI();
   if (currentUser) refreshJournalReminderDebug();
   updateFeatureVisibility();
@@ -5836,6 +6049,7 @@ const GLOBAL_ACTIONS = {
   exportFullBackup, importFullBackup, rollOpenTasksForward,
   openNewProject, saveProject, closeModal, openAddPride, savePride,
   addDailyTask, fillDailyExamples, clearDoneDailyTasks, toggleDailyTask,
+  addRitual, updateRitual, deleteRitual, toggleRitual,
   setDailyPriorityTask, dismissDayClose, confirmDayClose, saveWeeklyReview,
   saveMorningFocus, prefillMorningFocusFromTasks, clearMorningFocus,
   setDailyReason, deleteDailyTask, fillJournalExample, saveJournalEntry,
