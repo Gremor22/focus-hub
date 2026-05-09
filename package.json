@@ -1,0 +1,16 @@
+{
+  "name": "focus-hub",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Focus Hub static app deployed to Cloudflare Pages",
+  "scripts": {
+    "build": "node scripts/build-assets.mjs",
+    "fcm:service-account": "node scripts/set-fcm-service-account.mjs",
+    "deploy": "npm run build && wrangler deploy",
+    "deploy:preview": "npm run build && wrangler deploy",
+    "deploy:prod": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.11.1"
+  }
+}

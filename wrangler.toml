@@ -1,0 +1,18 @@
+name = "focus-hub"
+main = "_worker.js"
+compatibility_date = "2026-04-18"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[durable_objects.bindings]]
+name = "REMINDER_SCHEDULER"
+class_name = "ReminderScheduler"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReminderScheduler"]

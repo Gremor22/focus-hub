@@ -1,0 +1,10 @@
+FCM_VAPID_PUBLIC_KEY=replace_with_firebase_web_push_public_key
+FCM_PROJECT_ID=focus-hub-b8bfc
+
+# Preferred: paste the full Firebase service account JSON on one line.
+# Never commit real values. Store real credentials only as Cloudflare Worker secrets.
+FCM_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"focus-hub-b8bfc","private_key_id":"REDACTED","private_key":"REDACTED","client_email":"firebase-adminsdk-REDACTED@focus-hub-b8bfc.iam.gserviceaccount.com","client_id":"REDACTED"}
+
+# Alternative if you do not use FCM_SERVICE_ACCOUNT_JSON:
+# FCM_CLIENT_EMAIL=firebase-adminsdk-...@focus-hub-b8bfc.iam.gserviceaccount.com
+# FCM_PRIVATE_KEY=REDACTED
