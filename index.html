@@ -2314,7 +2314,7 @@ const fbApp = initializeApp(firebaseConfig);
 const fbAuth = getAuth(fbApp);
 const fbDb = getFirestore(fbApp);
 const APP_STORAGE_KEY = 'focushub_v1';
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 const THEME_PRESETS = {
   lime: { label:'Neon Lime', accent:'#c8f040', blue:'#40a8f0', amber:'#f0b840', red:'#f04840' },
   ocean: { label:'Ocean', accent:'#5cc8ff', blue:'#3f8cff', amber:'#ffb65c', red:'#ff6b7a' },
@@ -2375,7 +2375,9 @@ function defaultState() {
       eveningReminderTime:'19:00',
       badgeEnabled:true,
       appMode:'standard',
-      deviceId: ''
+      deviceId: '',
+      lastModifiedAt:'',
+      lastModifiedByDevice:''
     },
     projects: [],
     pride: [],
@@ -2389,6 +2391,19 @@ function defaultState() {
   };
 }
 function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
+function nowIso() { return new Date().toISOString(); }
+function validIsoDateTime(value) {
+  if (!value) return '';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+}
+function metadataTimestamp(...values) {
+  for (const value of values) {
+    const iso = validIsoDateTime(value);
+    if (iso) return iso;
+  }
+  return nowIso();
+}
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -2457,6 +2472,32 @@ function migrateV1StateToV2(state) {
     ritualLog: isPlainObject(state.ritualLog) ? state.ritualLog : {}
   };
 }
+function migrateV2StateToV3(state) {
+  const deviceId = state.settings?.deviceId || '';
+  const stampProject = (project) => ({
+    ...project,
+    updatedAt: metadataTimestamp(project.updatedAt, project.touched, project.createdAt, project.created),
+    updatedByDevice: project.updatedByDevice || deviceId
+  });
+  const stampEntity = (entity) => ({
+    ...entity,
+    updatedAt: metadataTimestamp(entity.updatedAt, entity.createdAt, entity.created),
+    updatedByDevice: entity.updatedByDevice || deviceId
+  });
+  return {
+    ...state,
+    schemaVersion: 3,
+    settings: {
+      ...(isPlainObject(state.settings) ? state.settings : {}),
+      lastModifiedAt: metadataTimestamp(state.settings?.lastModifiedAt, state.settings?.lastCloudSyncAt, state.settings?.lastLocalSaveAt),
+      lastModifiedByDevice: state.settings?.lastModifiedByDevice || deviceId
+    },
+    projects: Array.isArray(state.projects) ? state.projects.map(stampProject) : [],
+    daily: Array.isArray(state.daily) ? state.daily.map(stampEntity) : [],
+    journal: Array.isArray(state.journal) ? state.journal.map(stampEntity) : [],
+    rituals: Array.isArray(state.rituals) ? state.rituals.map(stampEntity) : []
+  };
+}
 function migrateState(raw) {
   const initial = raw == null ? defaultState() : clone(raw);
   validateStateShape(initial, 'pre-migration');
@@ -2473,6 +2514,10 @@ function migrateState(raw) {
   if (version < 2) {
     next = migrateV1StateToV2(next);
     version = 2;
+  }
+  if (version < 3) {
+    next = migrateV2StateToV3(next);
+    version = 3;
   }
   validateStateShape(next, 'post-migration');
   return next;
@@ -2497,6 +2542,7 @@ function hydrateState(raw) {
 }
 function normalizeStateShape(state = D) {
   const S = state;
+  const fallbackDeviceId = S.settings?.deviceId || makeDeviceId();
   const toIso = (value) => {
     if (!value) return '';
     const str = String(value).trim();
@@ -2524,6 +2570,8 @@ function normalizeStateShape(state = D) {
     due: toIso(p.due || p.deadline || ''),
     created: toIso(p.created || p.createdAt || todayStr()) || todayStr(),
     touched: toIso(p.touched || p.updatedAt || p.created || p.createdAt || todayStr()) || todayStr(),
+    updatedAt: metadataTimestamp(p.updatedAt, p.touched, p.createdAt, p.created),
+    updatedByDevice: p.updatedByDevice || fallbackDeviceId,
     history: Array.isArray(p.history) ? p.history : []
   })) : [];
   S.daily = Array.isArray(S.daily) ? S.daily.map((t, idx) => ({
@@ -2533,6 +2581,8 @@ function normalizeStateShape(state = D) {
     lane: ['must','quick','optional'].includes(t.lane) ? t.lane : (t.section === 'Must' ? 'must' : (['Jeśli starczy sił','Opcjonalne'].includes(t.section) ? 'optional' : 'quick')),
     done: !!t.done,
     createdAt: t.createdAt || new Date().toISOString(),
+    updatedAt: metadataTimestamp(t.updatedAt, t.createdAt),
+    updatedByDevice: t.updatedByDevice || fallbackDeviceId,
     projectId: t.projectId || '',
     reason: t.reason || '',
     reminderEnabled: !!(t.reminderEnabled ?? t.remindAt ?? t.reminderAt),
@@ -2550,14 +2600,18 @@ function normalizeStateShape(state = D) {
     note: j.note || '',
     closeDay: j.closeDay || {},
     closeNote: j.closeNote || '',
-    createdAt: j.createdAt || new Date().toISOString()
+    createdAt: j.createdAt || new Date().toISOString(),
+    updatedAt: metadataTimestamp(j.updatedAt, j.createdAt),
+    updatedByDevice: j.updatedByDevice || fallbackDeviceId
   })) : [];
   S.rituals = Array.isArray(S.rituals) ? S.rituals.map((r, idx) => ({
     id: String(r.id || Date.now() + idx),
     text: r.text || r.name || '',
     timeOfDay: ['morning','evening','any'].includes(r.timeOfDay) ? r.timeOfDay : 'any',
     active: r.active !== false,
-    createdAt: r.createdAt || new Date().toISOString()
+    createdAt: r.createdAt || new Date().toISOString(),
+    updatedAt: metadataTimestamp(r.updatedAt, r.createdAt),
+    updatedByDevice: r.updatedByDevice || fallbackDeviceId
   })).filter(r => r.text) : [];
   S.ritualLog = (S.ritualLog && typeof S.ritualLog === 'object') ? Object.fromEntries(Object.entries(S.ritualLog).map(([date, value]) => {
     const day = toIso(date);
@@ -2620,7 +2674,9 @@ function normalizeStateShape(state = D) {
     eveningReminderTime: rawSettings.eveningReminderTime || rawSettings.eveningOpenTasksReminderTime || '19:00',
     badgeEnabled: rawSettings.badgeEnabled !== false,
     appMode,
-    deviceId: rawSettings.deviceId || makeDeviceId()
+    deviceId: rawSettings.deviceId || fallbackDeviceId,
+    lastModifiedAt: rawSettings.lastModifiedAt || '',
+    lastModifiedByDevice: rawSettings.lastModifiedByDevice || rawSettings.deviceId || fallbackDeviceId
   };
   S.projects.forEach(project => { project.progress = projectProgress(project); });
   S.schemaVersion = CURRENT_SCHEMA_VERSION;
@@ -2640,6 +2696,73 @@ let editingId = null;
 let archivingId = null;
 let selectedCat = 'Gry';
 let reminderTimers = new Map();
+const stateSubscribers = new Set();
+
+function getState() {
+  return D;
+}
+function subscribe(listener) {
+  if (typeof listener !== 'function') return () => {};
+  stateSubscribers.add(listener);
+  return () => stateSubscribers.delete(listener);
+}
+function notifyStateSubscribers(metadata = {}) {
+  stateSubscribers.forEach(listener => {
+    try { listener(D, metadata); } catch (error) { console.error('State subscriber failed', error); }
+  });
+}
+function touchEntity(state, target, id, at, deviceId) {
+  if (!target) return;
+  const update = (item) => {
+    item.updatedAt = at;
+    item.updatedByDevice = deviceId;
+  };
+  if (target === 'project') {
+    const item = (state.projects || []).find(project => String(project.id) === String(id));
+    if (item) {
+      update(item);
+      item.touched = todayStr();
+    }
+    return;
+  }
+  if (target === 'dailyTask') {
+    const item = (state.daily || []).find(task => String(task.id) === String(id));
+    if (item) update(item);
+    return;
+  }
+  if (target === 'journalEntry') {
+    const item = (state.journal || []).find(entry => String(entry.id) === String(id));
+    if (item) update(item);
+    return;
+  }
+  if (target === 'ritual') {
+    const item = (state.rituals || []).find(ritual => String(ritual.id) === String(id));
+    if (item) update(item);
+  }
+}
+function applyChangeMetadata(state, metadata = {}) {
+  const next = normalizeAppState(state);
+  const at = metadata.updatedAt || nowIso();
+  const deviceId = next.settings?.deviceId || makeDeviceId();
+  next.settings.lastModifiedAt = at;
+  next.settings.lastModifiedByDevice = deviceId;
+  touchEntity(next, metadata.entity, metadata.id, at, deviceId);
+  (metadata.entities || []).forEach(item => touchEntity(next, item.entity, item.id, at, deviceId));
+  return next;
+}
+function setState(nextState, metadata = {}) {
+  D = applyChangeMetadata(nextState || defaultState(), metadata);
+  saveLocalCache({ skipNormalize: true });
+  pushStateToCloud(metadata.reason || 'save', { skipLocal: true });
+  notifyStateSubscribers(metadata);
+  if (metadata.render) renderCurrentPage();
+  return D;
+}
+function updateState(mutator, metadata = {}) {
+  const draft = clone(D);
+  const result = typeof mutator === 'function' ? mutator(draft) : draft;
+  return setState(result || draft, metadata);
+}
 
 // ════════════════════════════════════════
 // FIREBASE INIT / RUNTIME
@@ -2816,17 +2939,17 @@ function loadLocalCache() {
   D = result.state || defaultState();
   ensureDisplayNameFromAuth();
 }
-function saveLocalCache() {
+function saveLocalCache(options = {}) {
   if (D?.settings) D.settings.lastLocalSaveAt = new Date().toISOString();
+  if (!options.skipNormalize) D = normalizeAppState(D);
   D = storage().saveLocal(D);
   setSyncState(currentUser ? '' : (APP_RUNTIME.localMode ? 'bad' : ''), currentUser ? 'Zapisano lokalnie' : (APP_RUNTIME.localMode ? 'Brak połączenia' : 'Zapisano lokalnie'));
   scheduleBadgeSync();
   scheduleReminderSync();
   scheduleReminderTimers();
 }
-function save() {
-  saveLocalCache();
-  pushStateToCloud('save');
+function save(metadata = {}) {
+  return setState(D, metadata);
 }
 
 // ════════════════════════════════════════
@@ -2952,12 +3075,12 @@ function syncThemeForm() {
   if (!wrap) return;
   wrap.innerHTML = Object.entries(THEME_PRESETS).map(([key, val]) => `<div class="theme-preset ${D.settings.themePreset===key?'active':''}" data-action="setThemePreset" data-value="${escapeHtml(key)}"><div class="theme-swatches"><span style="background:${val.accent}"></span><span style="background:${val.blue}"></span><span style="background:${val.amber}"></span><span style="background:${val.red}"></span></div><strong>${escapeHtml(val.label)}</strong></div>`).join('') + `<div class="theme-preset ${D.settings.themePreset==='custom'?'active':''}" data-action="setThemePreset" data-value="custom"><div class="theme-swatches"><span style="background:${D.settings.themeCustom.accent}"></span><span style="background:${D.settings.themeCustom.blue}"></span><span style="background:${D.settings.themeCustom.amber}"></span><span style="background:${D.settings.themeCustom.red}"></span></div><strong>Własny</strong></div>`;
 }
-function setThemeMode(mode) { D.settings.themeMode = mode; applyThemeSettings(); save(); }
+function setThemeMode(mode) { D.settings.themeMode = mode; applyThemeSettings(); save({ reason:'settings:theme' }); }
 function setThemePreset(preset) {
   D.settings.themePreset = preset;
   if (preset !== 'custom' && THEME_PRESETS[preset]) D.settings.themeCustom = { ...THEME_PRESETS[preset] };
   applyThemeSettings();
-  save();
+  save({ reason:'settings:theme' });
 }
 function updateCustomTheme() {
   D.settings.themePreset = 'custom';
@@ -2966,7 +3089,7 @@ function updateCustomTheme() {
     if (el) D.settings.themeCustom[key] = el.value;
   });
   applyThemeSettings();
-  save();
+  save({ reason:'settings:theme' });
 }
 
 // ════════════════════════════════════════
@@ -3098,8 +3221,8 @@ function stopCloudSync() {
   lastRemoteHash = '';
   APP_RUNTIME.pendingCloudHash = '';
 }
-async function pushStateToCloud(reason='save') {
-  saveLocalCache();
+async function pushStateToCloud(reason='save', options = {}) {
+  if (!options.skipLocal) saveLocalCache();
   if (!currentUser || suppressRemoteWrite) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
@@ -3396,7 +3519,7 @@ function setDailyPriorityTask(id) {
   if (!task) return;
   D.dailyPriority = D.dailyPriority || {};
   D.dailyPriority[task.date] = task.id;
-  save();
+  save({ entity:'dailyTask', id:task.id, reason:'daily:priority' });
   renderDaily();
   toast('Ustawiono priorytet dnia.');
 }
@@ -3855,7 +3978,7 @@ function triggerTaskReminder(taskId) {
     tag: `task-${task.id}`,
     data: { url: `./?page=${task.date > todayStr() ? 'upcoming' : 'daily'}`, page: task.date > todayStr() ? 'upcoming' : 'daily', taskId: task.id }
   });
-  save();
+  save({ entity:'dailyTask', id:task.id, reason:'daily:reminder-local' });
   renderCurrentPage();
 }
 function triggerJournalReminder(type = 'primary') {
@@ -3959,13 +4082,13 @@ async function syncMessagingRegistration({ force = false, requestPermission = fa
   const preflight = await checkNotificationEnvironment({ requirePermission: true });
   if (!preflight.ok) {
     D.settings.notificationsEnabled = false;
-    save();
+    save({ reason:'settings:notifications' });
     setNotificationRuntimeStatus(preflight.code, preflight.label);
     return false;
   }
   if (!validateNotificationConfig()) {
     D.settings.notificationsEnabled = false;
-    save();
+    save({ reason:'settings:notifications' });
     await writeDeviceRegistration({ active: false, token: '', lastError: 'missing_fcm_vapid_key' }).catch(() => {});
     return false;
   }
@@ -3979,7 +4102,7 @@ async function syncMessagingRegistration({ force = false, requestPermission = fa
   collectNotificationEnvironment();
   if (!notificationsAllowed()) {
     D.settings.notificationsEnabled = false;
-    save();
+    save({ reason:'settings:notifications' });
     await unregisterCurrentDevice();
     setNotificationRuntimeStatus(Notification.permission === 'denied' ? 'permission_denied' : 'permission_missing', Notification.permission === 'denied' ? 'permission denied' : 'brak zgody');
     return false;
@@ -3991,7 +4114,7 @@ async function syncMessagingRegistration({ force = false, requestPermission = fa
     registration = await registerMessagingServiceWorker();
   } catch (err) {
     D.settings.notificationsEnabled = false;
-    save();
+    save({ reason:'settings:notifications' });
     setNotificationRuntimeStatus('service_worker_registration_failed', shortError(err));
     return false;
   }
@@ -4008,7 +4131,7 @@ async function syncMessagingRegistration({ force = false, requestPermission = fa
     NOTIFICATION_RUNTIME.lastRegistrationAt = new Date().toISOString();
     NOTIFICATION_RUNTIME.registrationError = '';
     D.settings.notificationsEnabled = true;
-    save();
+    save({ reason:'settings:notifications' });
     await writeDeviceRegistration({
       active: false,
       token,
@@ -4268,7 +4391,7 @@ function setTaskReminder(id) {
   task.remindAt = parsed.toISOString();
   task.reminderSentAt = '';
   task.reminderDismissedAt = '';
-  save();
+  save({ entity:'dailyTask', id:task.id, reason:'daily:reminder-set' });
   renderCurrentPage();
   toast('Przypomnienie ustawione.');
 }
@@ -4278,7 +4401,7 @@ function clearTaskReminder(id) {
   task.reminderEnabled = false;
   task.reminderDismissedAt = new Date().toISOString();
   task.reminderSentAt = '';
-  save();
+  save({ entity:'dailyTask', id:task.id, reason:'daily:reminder-clear' });
   renderCurrentPage();
   toast('Przypomnienie wyłączone.');
 }
@@ -4290,7 +4413,7 @@ async function toggleSystemNotifications(enabled) {
     return;
   }
   D.settings.notificationsEnabled = false;
-  save();
+  save({ reason:'settings:notifications' });
   await unregisterCurrentDevice();
   await syncReminderScheduleToBackend();
   renderAccount();
@@ -4452,11 +4575,11 @@ function maybeRollDailyTasks() {
   const today = todayStr();
   if (D.settings.lastDailyRollDate === today) return false;
   const sourceDate = latestOpenDailyDateBeforeToday();
-  if (!sourceDate) { D.settings.lastDailyRollDate = today; save(); return false; }
+  if (!sourceDate) { D.settings.lastDailyRollDate = today; save({ reason:'daily:auto-roll-check' }); return false; }
   const moved = rollOpenTasksForward(false, sourceDate);
   D.settings.lastDailyRollDate = today;
   D.settings.lastDailyRollFrom = sourceDate || '';
-  save();
+  save({ reason:'daily:auto-roll' });
   if (moved > 0) toast(`Przeniosłem ${moved} otwarte zad${moved===1?'anie':'ania'} z ${sourceDate} na dziś.`);
   return moved > 0;
 }
@@ -4481,7 +4604,7 @@ function rollOpenTasksForward(showToast = true, sourceDate = '') {
   if (moved) {
     D.settings.lastDailyRollDate = today;
     D.settings.lastDailyRollFrom = from;
-    save();
+    save({ entities: (D.daily || []).filter(task => task.rolledAt && task.date === today).map(task => ({ entity:'dailyTask', id:task.id })), reason:'daily:roll-forward' });
     if (showToast) { renderDaily(); toast(`Przeniesiono ${moved} otwarte zad${moved===1?'anie':'ania'} na dziś.`); }
   } else if (showToast) toast('Nie było nic nowego do przeniesienia.');
   return moved;
@@ -4815,14 +4938,14 @@ function saveMorningFocus() {
   const note = document.getElementById('focus-note')?.value.trim() || '';
   if (!priorities.some(Boolean) && !note) { toast('Dodaj chociaż jedną rzecz do focusu dnia.'); return; }
   setMorningFocus(todayStr(), { priorities, note });
-  save();
+  save({ reason:'morning-focus:update' });
   renderDaily();
   toast('Zapisano focus dnia.');
 }
 function clearMorningFocus() {
   D.morningFocus = D.morningFocus || {};
   delete D.morningFocus[todayStr()];
-  save();
+  save({ reason:'morning-focus:clear' });
   prepMorningFocusDefaults();
   renderDaily();
   toast('Wyczyszczono focus dnia.');
@@ -4843,7 +4966,7 @@ function renderMorningFocusPanel() {
 }
 function toggleAutoRoll(checked) {
   D.settings.autoRollDaily = !!checked;
-  save();
+  save({ reason:'settings:auto-roll' });
   renderDaily();
   toast(checked ? 'Włączono automatyczne przenoszenie otwartych zadań.' : 'Wyłączono automatyczne przenoszenie otwartych zadań.');
 }
@@ -4904,7 +5027,7 @@ function renderDailyRituals() {
 function toggleRitual(id) {
   const date = getDailySelectedDate();
   setRitualDone(date, id, !ritualDone(date, id));
-  save();
+  save({ reason:'ritual-log:update' });
   renderDailyRituals();
 }
 function dailyTaskHTML(task) {
@@ -4979,9 +5102,10 @@ function addDailyTask() {
   const pickedDate = getDailySelectedDate();
   const reminder = collectTaskReminderFromForm('daily', pickedDate);
   D.daily = D.daily || [];
-  const newTask = { id: String(Date.now()) + Math.random().toString(36).slice(2,5), date: pickedDate, text, lane, done: false, projectId, reason:'', createdAt: new Date().toISOString(), ...reminder };
+  const stamp = nowIso();
+  const newTask = { id: String(Date.now()) + Math.random().toString(36).slice(2,5), date: pickedDate, text, lane, done: false, projectId, reason:'', createdAt: stamp, updatedAt: stamp, updatedByDevice: D.settings.deviceId || '', ...reminder };
   D.daily.push(newTask);
-  save();
+  save({ entity:'dailyTask', id:newTask.id, reason:'daily:create' });
   document.getElementById('daily-task-text').value = '';
   document.getElementById('daily-task-project').value = '';
   resetTaskReminderForm('daily');
@@ -4998,8 +5122,14 @@ function fillDailyExamples() {
     ['optional', 'Sprawdź jedną rzecz do magisterki']
   ];
   D.daily = D.daily || [];
-  samples.forEach(([lane, text], idx) => D.daily.push({ id: String(Date.now()) + idx + Math.random().toString(36).slice(2,5), date: pickedDate, text, lane, done: false, projectId: '', reason:'', createdAt: new Date().toISOString() }));
-  save();
+  const stamp = nowIso();
+  const ids = [];
+  samples.forEach(([lane, text], idx) => {
+    const id = String(Date.now()) + idx + Math.random().toString(36).slice(2,5);
+    ids.push(id);
+    D.daily.push({ id, date: pickedDate, text, lane, done: false, projectId: '', reason:'', createdAt: stamp, updatedAt: stamp, updatedByDevice: D.settings.deviceId || '' });
+  });
+  save({ entities: ids.map(id => ({ entity:'dailyTask', id })), reason:'daily:examples' });
   renderDaily();
   toast('Wstawiłem przykładową listę dnia.');
 }
@@ -5018,7 +5148,7 @@ function toggleDailyTask(id) {
     task.reminderDismissedAt = '';
   }
   if (!task.done && D.dailyPriority?.[date] === task.id) delete D.dailyPriority[date];
-  save();
+  save({ entity:'dailyTask', id:task.id, reason:'daily:toggle' });
   if (task.done && date === todayStr() && hadOpen) maybePromptDayClose(date);
   renderAll();
   renderCurrentPage();
@@ -5035,7 +5165,7 @@ function setDailyReason(id) {
   const next = prompt('Dlaczego to dziś nie idzie? Np. brak czasu / za duże / nie było potrzebne / czekam na coś', task.reason || '');
   if (next === null) return;
   task.reason = next.trim();
-  save();
+  save({ entity:'dailyTask', id:task.id, reason:'daily:reason' });
   renderDaily();
 }
 function deleteDailyTask(id) {
@@ -5044,7 +5174,7 @@ function deleteDailyTask(id) {
   if (!isPhoneUI() && !confirm('Usunąć to zadanie z listy dnia?')) return;
   const removed = { ...task };
   D.daily = (D.daily || []).filter(t => String(t.id) !== String(id));
-  save();
+  save({ reason:'daily:delete' });
   renderDaily();
   toast('Task usunięty.', {
     label: 'Cofnij',
@@ -5052,7 +5182,7 @@ function deleteDailyTask(id) {
     onClick: () => {
       D.daily = D.daily || [];
       if (!(D.daily || []).some(t => String(t.id) === String(removed.id))) D.daily.push(removed);
-      save();
+      save({ entity:'dailyTask', id:removed.id, reason:'daily:restore' });
       renderCurrentPage();
       toast('Przywrócono task.');
     }
@@ -5063,7 +5193,7 @@ function clearDoneDailyTasks() {
   const before = (D.daily || []).length;
   D.daily = (D.daily || []).filter(t => !(t.date === todayStr() && t.done));
   const removed = before - D.daily.length;
-  save();
+  save({ reason:'daily:clear-done' });
   renderDaily();
   toast(removed ? 'Usunąłem zrobione zadania z dziś.' : 'Nie ma zrobionych zadań do usunięcia.');
 }
@@ -5108,13 +5238,13 @@ function maybePromptDayClose(date, options = {}) {
 }
 function dismissDayClose() {
   D.settings.lastDayCloseDismissedDate = todayStr();
-  save();
+  save({ reason:'settings:day-close-dismiss' });
   closeModal('modal-day-close');
 }
 function confirmDayClose() {
   const date = todayStr();
   D.settings.lastDayCloseConfirmedDate = date;
-  save();
+  save({ reason:'settings:day-close-confirm' });
   prefillJournalForDayClose(date);
   closeModal('modal-day-close');
   nav('journal');
@@ -5219,9 +5349,10 @@ function addUpcomingTask() {
   if (!date || !text) { toast('Podaj datę i treść zadania.'); return; }
   const reminder = collectTaskReminderFromForm('upcoming', date);
   D.daily = D.daily || [];
-  const newTask = { id: String(Date.now()) + Math.random().toString(36).slice(2,6), date, text, lane, done:false, projectId, reason:'', createdAt:new Date().toISOString(), ...reminder };
+  const stamp = nowIso();
+  const newTask = { id: String(Date.now()) + Math.random().toString(36).slice(2,6), date, text, lane, done:false, projectId, reason:'', createdAt:stamp, updatedAt:stamp, updatedByDevice: D.settings.deviceId || '', ...reminder };
   D.daily.push(newTask);
-  save();
+  save({ entity:'dailyTask', id:newTask.id, reason:'daily:create-upcoming' });
   const textEl = document.getElementById('upcoming-task-text'); if (textEl) textEl.value='';
   resetTaskReminderForm('upcoming');
   renderUpcoming();
@@ -5238,7 +5369,7 @@ function moveTaskToToday(id) {
   if (!task) return;
   task.date = todayStr();
   task.rolledFrom = task.rolledFrom || 'plan';
-  save();
+  save({ entity:'dailyTask', id:task.id, reason:'daily:move-today' });
   renderUpcoming();
   if (document.querySelector('.page.on')?.id === 'page-daily') renderDaily();
   toast('Przeniesiono zadanie na dziś.');
@@ -5346,10 +5477,10 @@ function saveWeeklyReview() {
   }
   const weekKey = currentWeekKey(new Date());
   const existing = (D.weeklyReview || []).find(entry => entry.weekKey === weekKey);
-  const payload = { weekKey, finished, dropped, goal, createdAt: new Date().toISOString() };
+  const payload = { weekKey, finished, dropped, goal, createdAt: nowIso(), updatedAt: nowIso(), updatedByDevice: D.settings.deviceId || '' };
   if (existing) Object.assign(existing, payload);
   else (D.weeklyReview ||= []).push({ id: String(Date.now()), ...payload });
-  save();
+  save({ reason:'review:update' });
   closeModal('modal-weekly-review');
   renderReview();
   toast('Zapisano review tygodnia.');
@@ -5364,7 +5495,7 @@ function exportFullBackup() {
   a.download = backup.filename;
   a.click();
   URL.revokeObjectURL(a.href);
-  save();
+  save({ reason:'backup:export' });
   renderHub();
   renderAccount();
   const current = document.querySelector('.page.on')?.id?.replace('page-','');
@@ -5379,7 +5510,7 @@ async function importFullBackup(event) {
     if (!confirm('Zaimportować backup i zastąpić obecne dane?')) return;
     D = incoming;
     ensureDisplayNameFromAuth(currentUser);
-    save();
+    save({ reason:'backup:import' });
     prepJournalDefaults();
     prepDailyDefaults();
     renderAll();
@@ -5546,6 +5677,7 @@ function saveJournalEntry() {
   }
   if (!win && !gratitude && !acceptance && !note && !closeNote) { toast('Dodaj chociaż jedno pole do wpisu.'); return; }
 
+  const stamp = nowIso();
   const payload = {
     date,
     mood,
@@ -5555,17 +5687,21 @@ function saveJournalEntry() {
     note,
     closeDay,
     closeNote,
-    createdAt: new Date().toISOString(),
+    createdAt: stamp,
+    updatedAt: stamp,
+    updatedByDevice: D.settings.deviceId || '',
   };
 
+  let changedId = editingJournalId;
   if (editingJournalId) {
     const item = D.journal.find(x => String(x.id) === String(editingJournalId));
-    if (item) Object.assign(item, payload);
+    if (item) Object.assign(item, payload, { createdAt: item.createdAt || payload.createdAt });
   } else {
-    D.journal.push({ id: String(Date.now()) + Math.random().toString(36).slice(2,5), ...payload });
+    changedId = String(Date.now()) + Math.random().toString(36).slice(2,5);
+    D.journal.push({ id: changedId, ...payload });
   }
 
-  save();
+  save({ entity:'journalEntry', id:changedId, reason:'journal:save' });
   renderJournal();
   resetJournalForm();
   toast(editingJournalId ? 'Wpis zaktualizowany.' : 'Wpis zapisany.');
@@ -5599,7 +5735,7 @@ function deleteJournalEntry(id) {
   if (!item) return;
   if (!confirm('Usunąć ten wpis z dziennika?')) return;
   D.journal = D.journal.filter(x => String(x.id) !== String(id));
-  save();
+  save({ reason:'journal:delete' });
   renderJournal();
   toast('Wpis usunięty.');
 }
@@ -5869,8 +6005,11 @@ function saveProject() {
     progress: Math.round((steps.filter(step => step.done).length / steps.length) * 100),
     due: document.getElementById('mp-due').value,
     touched: todayStr(),
+    updatedAt: nowIso(),
+    updatedByDevice: D.settings.deviceId || '',
   };
 
+  let changedId = editingId;
   if (editingId) {
     const p = D.projects.find(x => x.id === editingId);
     if (p) {
@@ -5880,12 +6019,13 @@ function saveProject() {
       if (beforeProgress !== Number(p.progress || 0) || beforeStatus !== p.status) snapshotProject(p, 'edycja');
     }
   } else {
-    const newProj = { id: String(Date.now()), created: todayStr(), ...proj, history: [] };
+    changedId = String(Date.now());
+    const newProj = { id: changedId, created: todayStr(), ...proj, history: [] };
     snapshotProject(newProj, 'start');
     D.projects.push(newProj);
   }
 
-  save();
+  save({ entity:'project', id:changedId, reason:'project:save' });
   closeModal('modal-proj');
   updateSidebar();
   prepDailyDefaults();
@@ -5902,7 +6042,7 @@ function markDone(id) {
   p.progress = 100;
   p.touched = todayStr();
   snapshotProject(p, 'done');
-  save();
+  save({ entity:'project', id:p.id, reason:'project:done' });
   updateSidebar();
   prepDailyDefaults();
   const curPage = document.querySelector('.page.on')?.id?.replace('page-','') || 'hub';
@@ -5919,7 +6059,7 @@ function toggleProjectStep(id, stepIndex) {
   project.progress = projectProgress(project);
   project.touched = todayStr();
   snapshotProject(project, 'krok');
-  save();
+  save({ entity:'project', id:project.id, reason:'project:step' });
   renderCurrentPage();
 }
 
@@ -5930,7 +6070,7 @@ function promoteToActive(id) {
   p.status = 'active';
   p.touched = todayStr();
   snapshotProject(p, 'wznowienie');
-  save();
+  save({ entity:'project', id:p.id, reason:'project:promote' });
   updateSidebar();
   prepDailyDefaults();
   const curPage = document.querySelector('.page.on')?.id?.replace('page-','') || 'hub';
@@ -5954,7 +6094,7 @@ function confirmArchive() {
   p.archived = todayStr();
   p.archiveReason = document.getElementById('arc-reason').value.trim();
   p.archiveLesson = document.getElementById('arc-lesson').value.trim();
-  save();
+  save({ entity:'project', id:p.id, reason:'project:archive' });
   closeModal('modal-archive');
   updateSidebar();
   prepDailyDefaults();
@@ -5982,7 +6122,7 @@ function savePride() {
     note: document.getElementById('pr-note').value.trim(),
     date: todayStr(),
   });
-  save();
+  save({ reason:'pride:create' });
   closeModal('modal-pride');
   renderPride();
   toast('🏆 Dodano do ściany dumy!');
@@ -6032,14 +6172,18 @@ function addRitual() {
   const text = textEl?.value.trim() || '';
   if (!text) { toast('Wpisz nazwę rytuału.'); return; }
   D.rituals = D.rituals || [];
+  const stamp = nowIso();
+  const id = String(Date.now()) + Math.random().toString(36).slice(2,5);
   D.rituals.push({
-    id: String(Date.now()) + Math.random().toString(36).slice(2,5),
+    id,
     text,
     timeOfDay: ['morning','evening','any'].includes(timeEl?.value) ? timeEl.value : 'any',
     active: true,
-    createdAt: new Date().toISOString()
+    createdAt: stamp,
+    updatedAt: stamp,
+    updatedByDevice: D.settings.deviceId || ''
   });
-  save();
+  save({ entity:'ritual', id, reason:'ritual:create' });
   if (textEl) textEl.value = '';
   if (timeEl) timeEl.value = 'any';
   renderAccount();
@@ -6055,7 +6199,7 @@ function updateRitual(id) {
   ritual.text = text;
   ritual.timeOfDay = ['morning','evening','any'].includes(timeOfDay) ? timeOfDay : 'any';
   ritual.active = !!document.getElementById(`ritual-active-${String(id)}`)?.checked;
-  save();
+  save({ entity:'ritual', id:ritual.id, reason:'ritual:update' });
   renderAccount();
   if (document.querySelector('.page.on')?.id === 'page-daily') renderDaily();
   toast('Zapisano rytuał.');
@@ -6065,7 +6209,7 @@ function deleteRitual(id) {
   if (!ritual) return;
   if (!confirm(`Usunąć rytuał "${ritual.text}"?`)) return;
   D.rituals = (D.rituals || []).filter(item => String(item.id) !== String(id));
-  save();
+  save({ reason:'ritual:delete' });
   renderAccount();
   if (document.querySelector('.page.on')?.id === 'page-daily') renderDaily();
   toast('Usunięto rytuał.');
@@ -6104,19 +6248,19 @@ function setAppMode(mode) {
   D.settings.showMorningFocus = next.defaults.showMorningFocus;
   D.settings.showAdvancedStats = next.defaults.showAdvancedStats;
   D.settings.limit = next.defaults.limit;
-  save();
+  save({ reason:'settings:app-mode' });
   renderAll();
   toast(`Tryb aplikacji: ${next.label}.`);
 }
 function setProjectLimit(value) {
   const next = Math.max(1, Math.min(20, parseInt(value || 3, 10) || 3));
   D.settings.limit = next;
-  save();
+  save({ reason:'settings:project-limit' });
   renderAll();
 }
 function toggleSetting(key, value) {
   D.settings[key] = !!value;
-  save();
+  save({ reason:'settings:toggle' });
   syncNotificationUI();
   updateFeatureVisibility();
   renderAll();
@@ -6126,7 +6270,7 @@ function setReminderSetting(key, value) {
   else if (key === 'journalReminderFollowupTime') D.settings[key] = value || '22:30';
   else if (key === 'eveningReminderTime') D.settings[key] = value || '19:00';
   else D.settings[key] = !!value;
-  save();
+  save({ reason:'settings:reminder' });
   if (currentUser && ['journalReminderEnabled','journalReminderTime','journalReminderFollowupEnabled','journalReminderFollowupTime','taskReminderEnabled','eveningReminderEnabled','eveningReminderTime','badgeEnabled'].includes(key)) {
     writeDeviceRegistration({
       active: !!(D.settings.notificationsEnabled && NOTIFICATION_RUNTIME.token),
@@ -6154,7 +6298,7 @@ async function resetAppData() {
   ensureDisplayNameFromAuth(currentUser);
   editingId = null;
   archivingId = null;
-  save();
+  save({ reason:'app:reset' });
   renderAll();
   toast('Usunięto wszystkie dane aplikacji.');
   nav(isPhoneUI() ? 'daily' : 'hub');
