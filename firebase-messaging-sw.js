@@ -50,6 +50,18 @@ async function syncWorkerBadge(rawCount) {
   } catch (_) {}
 }
 
+function safeNotificationUrl(input) {
+  const raw = typeof input === 'string' && input.trim() ? input.trim() : './';
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith('//')) return './';
+  try {
+    const parsed = new URL(raw, self.location.origin);
+    if (parsed.origin !== self.location.origin) return './';
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || './';
+  } catch (_) {
+    return './';
+  }
+}
+
 async function showFocusNotification(payload = {}) {
   const data = payload?.data || {};
   const notification = payload?.notification || {};
@@ -65,7 +77,7 @@ async function showFocusNotification(payload = {}) {
     badge: data.badge || './apple-touch-icon.png',
     tag: data.tag || undefined,
     data: {
-      url: data.url || './',
+      url: safeNotificationUrl(data.url),
       page: data.page || '',
       taskId: data.taskId || ''
     }
@@ -85,7 +97,7 @@ messaging.onBackgroundMessage((payload) => showFocusNotification(payload));
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || './';
+  const targetUrl = safeNotificationUrl(event.notification.data?.url);
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
