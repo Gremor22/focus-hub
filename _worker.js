@@ -13,6 +13,95 @@ async function readJson(request) {
   }
 }
 
+function isDevelopment(env) {
+  const mode = String(env.ENVIRONMENT || env.NODE_ENV || '').toLowerCase();
+  return env.ALLOW_DEBUG_ENDPOINTS === 'true' || mode === 'development' || mode === 'dev' || mode === 'local';
+}
+
+function unauthorized(error = 'unauthorized') {
+  return json({ ok: false, error }, 401);
+}
+
+function forbidden(error = 'forbidden') {
+  return json({ ok: false, error }, 403);
+}
+
+function base64UrlDecode(input = '') {
+  const normalized = String(input).replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
+}
+
+function decodeJwtPart(input = '') {
+  return JSON.parse(new TextDecoder().decode(base64UrlDecode(input)));
+}
+
+let firebaseJwksCache = { keys: [], expiresAt: 0 };
+
+async function getFirebaseJwks() {
+  if (firebaseJwksCache.keys.length && Date.now() < firebaseJwksCache.expiresAt) {
+    return firebaseJwksCache.keys;
+  }
+  const res = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !Array.isArray(data.keys)) throw new Error('firebase_jwks_fetch_failed');
+  const maxAge = String(res.headers.get('cache-control') || '').match(/max-age=(\d+)/)?.[1];
+  firebaseJwksCache = {
+    keys: data.keys,
+    expiresAt: Date.now() + (Number(maxAge || 3600) * 1000)
+  };
+  return firebaseJwksCache.keys;
+}
+
+async function verifyFirebaseIdToken(token, env) {
+  const projectId = env.FIREBASE_PROJECT_ID || env.FCM_PROJECT_ID || 'focus-hub-b8bfc';
+  const [headerPart, payloadPart, signaturePart] = String(token || '').split('.');
+  if (!headerPart || !payloadPart || !signaturePart) throw new Error('invalid_id_token');
+  const header = decodeJwtPart(headerPart);
+  const payload = decodeJwtPart(payloadPart);
+  if (header.alg !== 'RS256' || !header.kid) throw new Error('invalid_id_token_header');
+  if (payload.aud !== projectId) throw new Error('invalid_id_token_audience');
+  if (payload.iss !== `https://securetoken.google.com/${projectId}`) throw new Error('invalid_id_token_issuer');
+  if (!payload.sub) throw new Error('invalid_id_token_subject');
+  const now = Math.floor(Date.now() / 1000);
+  if (Number(payload.exp || 0) <= now) throw new Error('expired_id_token');
+  if (Number(payload.iat || 0) > now + 300) throw new Error('invalid_id_token_iat');
+  const jwk = (await getFirebaseJwks()).find((key) => key.kid === header.kid);
+  if (!jwk) throw new Error('unknown_id_token_key');
+  const key = await crypto.subtle.importKey(
+    'jwk',
+    jwk,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['verify']
+  );
+  const verified = await crypto.subtle.verify(
+    'RSASSA-PKCS1-v1_5',
+    key,
+    base64UrlDecode(signaturePart),
+    new TextEncoder().encode(`${headerPart}.${payloadPart}`)
+  );
+  if (!verified) throw new Error('invalid_id_token_signature');
+  return { uid: payload.user_id || payload.sub, email: payload.email || '' };
+}
+
+async function requireAuthenticatedBody(request, env) {
+  const authHeader = request.headers.get('authorization') || '';
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) return { response: unauthorized('missing_authorization_header') };
+  const body = await readJson(request);
+  if (!body?.userId) return { response: json({ ok: false, error: 'invalid_payload' }, 400) };
+  try {
+    const auth = await verifyFirebaseIdToken(match[1], env);
+    if (String(auth.uid) !== String(body.userId)) {
+      return { response: forbidden('user_id_mismatch') };
+    }
+    return { body, uid: auth.uid };
+  } catch (error) {
+    return { response: unauthorized(String(error?.message || 'invalid_id_token')) };
+  }
+}
+
 function schedulerStub(env, userId) {
   const id = env.REMINDER_SCHEDULER.idFromName(String(userId || 'anonymous'));
   return env.REMINDER_SCHEDULER.get(id);
@@ -136,7 +225,7 @@ function buildFcmRequest(payload = {}) {
   const body = {
     title: payload.title || 'Focus Hub',
     body: payload.body || 'Masz nowe powiadomienie.',
-    url: typeof data.url === 'string' && data.url ? data.url : './',
+    url: sanitizeNotificationUrl(data.url),
     page: data.page ? String(data.page) : '',
     taskId: data.taskId ? String(data.taskId) : '',
     tag: payload.tag ? String(payload.tag) : '',
@@ -145,6 +234,18 @@ function buildFcmRequest(payload = {}) {
     badge: './apple-touch-icon.png'
   };
   return Object.fromEntries(Object.entries(body).filter(([, value]) => value !== ''));
+}
+
+function sanitizeNotificationUrl(input) {
+  const raw = typeof input === 'string' && input.trim() ? input.trim() : './';
+  if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith('//')) return './';
+  try {
+    const parsed = new URL(raw, 'https://focus-hub.local');
+    if (parsed.origin !== 'https://focus-hub.local') return './';
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` || './';
+  } catch {
+    return './';
+  }
 }
 
 function tokenShouldBeRemoved(errorJson = {}) {
@@ -320,6 +421,7 @@ export default {
     }
 
     if (url.pathname === '/api/push/debug' && request.method === 'GET') {
+      if (!isDevelopment(env)) return json({ ok: false, error: 'not_found' }, 404);
       const backend = getFcmBackendStatus(env);
       return json({
         ok: true,
@@ -332,7 +434,9 @@ export default {
     }
 
     if (url.pathname === '/api/push/register-device' && request.method === 'POST') {
-      const body = await readJson(request);
+      const auth = await requireAuthenticatedBody(request, env);
+      if (auth.response) return auth.response;
+      const body = auth.body;
       if (!body?.userId || !body?.deviceId || !body?.token) {
         return json({ ok: false, error: 'invalid_payload' }, 400);
       }
@@ -345,7 +449,9 @@ export default {
     }
 
     if (url.pathname === '/api/push/unregister-device' && request.method === 'POST') {
-      const body = await readJson(request);
+      const auth = await requireAuthenticatedBody(request, env);
+      if (auth.response) return auth.response;
+      const body = auth.body;
       if (!body?.userId || !body?.deviceId) {
         return json({ ok: false, error: 'invalid_payload' }, 400);
       }
@@ -358,7 +464,9 @@ export default {
     }
 
     if (url.pathname === '/api/push/test' && request.method === 'POST') {
-      const body = await readJson(request);
+      const auth = await requireAuthenticatedBody(request, env);
+      if (auth.response) return auth.response;
+      const body = auth.body;
       if (!body?.userId || !body?.deviceId) {
         return json({ ok: false, error: 'invalid_payload' }, 400);
       }
@@ -371,7 +479,9 @@ export default {
     }
 
     if (url.pathname === '/api/reminders/sync' && request.method === 'POST') {
-      const body = await readJson(request);
+      const auth = await requireAuthenticatedBody(request, env);
+      if (auth.response) return auth.response;
+      const body = auth.body;
       if (!body?.userId || !Array.isArray(body?.reminders)) {
         return json({ ok: false, error: 'invalid_payload' }, 400);
       }
@@ -384,14 +494,20 @@ export default {
     }
 
     if (url.pathname === '/api/reminders/debug' && request.method === 'POST') {
-      const body = await readJson(request);
+      if (!isDevelopment(env)) return json({ ok: false, error: 'not_found' }, 404);
+      const auth = await requireAuthenticatedBody(request, env);
+      if (auth.response) return auth.response;
+      const body = auth.body;
       if (!body?.userId) return json({ ok: false, error: 'invalid_payload' }, 400);
       const stub = schedulerStub(env, body.userId);
       return stub.fetch('https://scheduler.internal/reminders/debug', { method: 'POST' });
     }
 
     if (url.pathname === '/api/reminders/test-journal' && request.method === 'POST') {
-      const body = await readJson(request);
+      if (!isDevelopment(env)) return json({ ok: false, error: 'not_found' }, 404);
+      const auth = await requireAuthenticatedBody(request, env);
+      if (auth.response) return auth.response;
+      const body = auth.body;
       if (!body?.userId) return json({ ok: false, error: 'invalid_payload' }, 400);
       const stub = schedulerStub(env, body.userId);
       return stub.fetch('https://scheduler.internal/reminders/test-journal', {

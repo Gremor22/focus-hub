@@ -1428,11 +1428,11 @@ body.light-theme .modal { background: var(--bg2); }
       <input type="password" id="auth-password" autocomplete="current-password" autocapitalize="none" spellcheck="false" enterkeyhint="done">
     </div>
     <div class="modal-footer" style="margin-top:10px; justify-content:stretch; flex-wrap:wrap;">
-      <button id="auth-login-btn" class="btn btn-lime" onclick="loginUser()" style="flex:1; min-width:160px;">Zaloguj</button>
-      <button id="auth-register-btn" class="btn btn-ghost" onclick="registerUser()" style="flex:1; min-width:160px;">Załóż konto</button>
+      <button id="auth-login-btn" class="btn btn-lime" data-action="loginUser" style="flex:1; min-width:160px;">Zaloguj</button>
+      <button id="auth-register-btn" class="btn btn-ghost" data-action="registerUser" style="flex:1; min-width:160px;">Załóż konto</button>
     </div>
     <div class="actions" style="margin-top:8px;">
-      <button id="auth-local-btn" class="btn btn-ghost btn-sm" onclick="continueLocalMode()">Wejdź lokalnie bez synchronizacji</button>
+      <button id="auth-local-btn" class="btn btn-ghost btn-sm" data-action="continueLocalMode">Wejdź lokalnie bez synchronizacji</button>
     </div>
     <div class="auth-note">Jeśli to Twój pierwszy raz, użyj „Załóż konto”. Dane lokalne z tej przeglądarki zostaną zachowane i mogą zostać przesłane do chmury po zalogowaniu.</div>
   </div>
@@ -1448,17 +1448,17 @@ body.light-theme .modal { background: var(--bg2); }
       <div class="brand-sub">Hub</div>
     </div>
     <div class="nav">
-      <div class="nav-item on" data-page="hub" onclick="nav('hub')"><span class="nav-dot"></span><span>Hub</span></div>
-      <div class="nav-item" data-page="daily" onclick="nav('daily')"><span class="nav-dot"></span><span>Dziś</span></div>
-      <div class="nav-item" data-page="upcoming" onclick="nav('upcoming')"><span class="nav-dot"></span><span>Nadchodzące</span></div>
-      <div class="nav-item" data-page="active" onclick="nav('active')"><span class="nav-dot"></span><span>Aktywne</span></div>
-      <div class="nav-item" data-page="backlog" onclick="nav('backlog')"><span class="nav-dot"></span><span>Pomysły</span></div>
-      <div class="nav-item" data-page="archive" onclick="nav('archive')"><span class="nav-dot"></span><span>Archiwum</span></div>
-      <div class="nav-item" data-page="pride" onclick="nav('pride')"><span class="nav-dot"></span><span>Duma</span></div>
-      <div class="nav-item" data-page="journal" onclick="nav('journal')"><span class="nav-dot"></span><span>Dziennik</span></div>
-      <div class="nav-item" data-page="stats" onclick="nav('stats')"><span class="nav-dot"></span><span>Postęp</span></div>
-      <div class="nav-item" data-page="review" onclick="nav('review')"><span class="nav-dot"></span><span>Review</span></div>
-      <div class="nav-item" data-page="account" onclick="nav('account')"><span class="nav-dot"></span><span>Konto</span></div>
+      <div class="nav-item on" data-action="nav" data-page="hub"><span class="nav-dot"></span><span>Hub</span></div>
+      <div class="nav-item" data-action="nav" data-page="daily"><span class="nav-dot"></span><span>Dziś</span></div>
+      <div class="nav-item" data-action="nav" data-page="upcoming"><span class="nav-dot"></span><span>Nadchodzące</span></div>
+      <div class="nav-item" data-action="nav" data-page="active"><span class="nav-dot"></span><span>Aktywne</span></div>
+      <div class="nav-item" data-action="nav" data-page="backlog"><span class="nav-dot"></span><span>Pomysły</span></div>
+      <div class="nav-item" data-action="nav" data-page="archive"><span class="nav-dot"></span><span>Archiwum</span></div>
+      <div class="nav-item" data-action="nav" data-page="pride"><span class="nav-dot"></span><span>Duma</span></div>
+      <div class="nav-item" data-action="nav" data-page="journal"><span class="nav-dot"></span><span>Dziennik</span></div>
+      <div class="nav-item" data-action="nav" data-page="stats"><span class="nav-dot"></span><span>Postęp</span></div>
+      <div class="nav-item" data-action="nav" data-page="review"><span class="nav-dot"></span><span>Review</span></div>
+      <div class="nav-item" data-action="nav" data-page="account"><span class="nav-dot"></span><span>Konto</span></div>
     </div>
     <div class="sidebar-slots">
       <div class="slot-label">Sloty aktywne</div>
@@ -1473,10 +1473,10 @@ body.light-theme .modal { background: var(--bg2); }
       <div class="topbar-title" id="tb-title">Focus Hub</div>
       <div class="topbar-date" id="tb-date"></div>
       <div class="sync-chip" id="sync-chip"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">Zapisano lokalnie</span></div>
-      <button class="btn btn-lime btn-sm" id="tb-add-btn" onclick="openNewProject()">+ Nowy projekt</button>
+      <button class="btn btn-lime btn-sm" id="tb-add-btn" data-action="openNewProject">+ Nowy projekt</button>
       <div class="topbar-mobile-actions">
-        <button class="topbar-icon-btn" type="button" aria-label="Dodaj task" onclick="mobileQuickAdd()">+</button>
-        <button class="topbar-icon-btn" type="button" aria-label="Otwórz menu" onclick="toggleMobileMenu(true)">☰</button>
+        <button class="topbar-icon-btn" type="button" aria-label="Dodaj task" data-action="mobileQuickAdd">+</button>
+        <button class="topbar-icon-btn" type="button" aria-label="Otwórz menu" data-action="toggleMobileMenu" data-force="true">☰</button>
       </div>
     </div>
     <div id="content">
@@ -1504,8 +1504,8 @@ body.light-theme .modal { background: var(--bg2); }
         </div>
 
         <div class="mobile-primary-actions">
-          <button class="btn btn-lime" type="button" onclick="focusDailyTaskInput()">+ Dodaj task</button>
-          <button class="btn btn-ghost" type="button" onclick="nav('journal'); focusJournalInput();">Dziennik</button>
+          <button class="btn btn-lime" type="button" data-action="focusDailyTaskInput">+ Dodaj task</button>
+          <button class="btn btn-ghost" type="button" data-action="openJournalAndFocus">Dziennik</button>
         </div>
 
         <div class="priority-card" id="daily-priority-card"></div>
@@ -1517,7 +1517,7 @@ body.light-theme .modal { background: var(--bg2); }
               <div class="row3">
                 <div class="field">
                   <label class="fl">Data</label>
-                  <input type="date" id="daily-task-date" onchange="renderDaily()">
+                  <input type="date" id="daily-task-date" data-action="renderDaily">
                 </div>
                 <div class="field">
                   <label class="fl">Szybkie zadanie</label>
@@ -1537,7 +1537,7 @@ body.light-theme .modal { background: var(--bg2); }
                 </div>
               </div>
               <label class="setting-option" style="margin-top:14px;">
-                <input type="checkbox" id="daily-task-reminder-enabled" onchange="syncTaskReminderForm('daily')">
+                <input type="checkbox" id="daily-task-reminder-enabled" data-action="syncTaskReminderForm" data-prefix="daily">
                 <span class="setting-option-copy">
                   <span class="setting-option-title">Przypomnij o tym zadaniu</span>
                 </span>
@@ -1553,8 +1553,8 @@ body.light-theme .modal { background: var(--bg2); }
                 </div>
               </div>
               <div class="modal-footer" style="margin-top:18px;justify-content:flex-start;">
-                <button class="btn btn-lime" onclick="addDailyTask()">+ Dodaj do listy</button>
-                                <button class="btn btn-ghost" onclick="clearDoneDailyTasks()">Usuń zrobione</button>
+                <button class="btn btn-lime" data-action="addDailyTask">+ Dodaj do listy</button>
+                                <button class="btn btn-ghost" data-action="clearDoneDailyTasks">Usuń zrobione</button>
               </div>
             </div>
 
@@ -1607,9 +1607,9 @@ body.light-theme .modal { background: var(--bg2); }
                 <input type="text" id="focus-note">
               </div>
               <div class="modal-footer" style="margin-top:16px;justify-content:flex-start;">
-                <button class="btn btn-lime" onclick="saveMorningFocus()">Zapisz focus dnia</button>
-                <button class="btn btn-ghost" onclick="prefillMorningFocusFromTasks()">Uzupełnij z tasków</button>
-                <button class="btn btn-ghost" onclick="clearMorningFocus()">Wyczyść</button>
+                <button class="btn btn-lime" data-action="saveMorningFocus">Zapisz focus dnia</button>
+                <button class="btn btn-ghost" data-action="prefillMorningFocusFromTasks">Uzupełnij z tasków</button>
+                <button class="btn btn-ghost" data-action="clearMorningFocus">Wyczyść</button>
               </div>
               <div class="morning-focus-list" id="morning-focus-list"></div>
             </div>
@@ -1638,7 +1638,7 @@ body.light-theme .modal { background: var(--bg2); }
               <div class="row3">
                 <div class="field">
                   <label class="fl">Data</label>
-                  <input type="date" id="upcoming-task-date" onchange="renderUpcoming()">
+                  <input type="date" id="upcoming-task-date" data-action="renderUpcoming">
                 </div>
                 <div class="field">
                   <label class="fl">Zadanie</label>
@@ -1658,7 +1658,7 @@ body.light-theme .modal { background: var(--bg2); }
                 </div>
               </div>
               <label class="setting-option" style="margin-top:14px;">
-                <input type="checkbox" id="upcoming-task-reminder-enabled" onchange="syncTaskReminderForm('upcoming')">
+                <input type="checkbox" id="upcoming-task-reminder-enabled" data-action="syncTaskReminderForm" data-prefix="upcoming">
                 <span class="setting-option-copy">
                   <span class="setting-option-title">Przypomnij o tym zadaniu</span>
                 </span>
@@ -1674,9 +1674,9 @@ body.light-theme .modal { background: var(--bg2); }
                 </div>
               </div>
               <div class="modal-footer" style="margin-top:18px;justify-content:flex-start;">
-                <button class="btn btn-lime" onclick="addUpcomingTask()">+ Dodaj na ten dzień</button>
-                <button class="btn btn-ghost" onclick="jumpUpcomingDate(1)">Jutro</button>
-                <button class="btn btn-ghost" onclick="jumpUpcomingDate(7)">Za tydzień</button>
+                <button class="btn btn-lime" data-action="addUpcomingTask">+ Dodaj na ten dzień</button>
+                <button class="btn btn-ghost" data-action="jumpUpcomingDate" data-delta="1">Jutro</button>
+                <button class="btn btn-ghost" data-action="jumpUpcomingDate" data-delta="7">Za tydzień</button>
               </div>
             </div>
 
@@ -1710,7 +1710,7 @@ body.light-theme .modal { background: var(--bg2); }
           <div class="sh-title">Aktywne</div>
           <div class="sh-count" id="active-count"></div>
           <div class="sh-right">
-            <button class="btn btn-lime btn-sm" onclick="openNewProject()">+ Nowy</button>
+            <button class="btn btn-lime btn-sm" data-action="openNewProject">+ Nowy</button>
           </div>
         </div>
         <div id="active-limit-bar" class="limit-bar">
@@ -1730,7 +1730,7 @@ body.light-theme .modal { background: var(--bg2); }
           <div class="sh-title">Pomysły</div>
           <div class="sh-count" id="backlog-count"></div>
           <div class="sh-right">
-            <button class="btn btn-ghost btn-sm" onclick="openNewProject('backlog')">+ Pomysł</button>
+            <button class="btn btn-ghost btn-sm" data-action="openNewProject" data-status="backlog">+ Pomysł</button>
           </div>
         </div>
         <div style="background:var(--blue-dim);border:1px solid var(--blue-border);border-radius:var(--r2);padding:12px 16px;margin-bottom:20px;font-size:0.8rem;color:var(--blue);line-height:1.5;">
@@ -1763,7 +1763,7 @@ body.light-theme .modal { background: var(--bg2); }
           <div class="sh-title">Ściana dumy</div>
           <div class="sh-count" id="pride-count"></div>
           <div class="sh-right">
-            <button class="btn btn-ghost btn-sm" onclick="openAddPride()">+ Dodaj</button>
+            <button class="btn btn-ghost btn-sm" data-action="openAddPride">+ Dodaj</button>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:12px 16px;margin-bottom:20px;font-size:0.8rem;color:var(--text2);line-height:1.5;font-style:italic;font-family:var(--serif-i);">
@@ -1835,14 +1835,14 @@ body.light-theme .modal { background: var(--bg2); }
                 <div class="stat-note">Zalogowany użytkownik: <strong id="account-email">—</strong></div>
               </div>
               <div class="modal-footer" style="margin-top:18px;justify-content:flex-start;">
-                <button class="btn btn-ghost" onclick="logoutUser()">Wyloguj</button>
+                <button class="btn btn-ghost" data-action="logoutUser">Wyloguj</button>
               </div>
             </div>
             <div class="daily-card" style="margin-top:16px;">
               <div class="sub-label">Personalizacja</div>
               <div class="field">
                 <label class="fl">Tryb aplikacji</label>
-                <select id="settings-app-mode" onchange="setAppMode(this.value)">
+                <select id="settings-app-mode" data-action="setAppMode">
                   <option value="minimal">Minimal</option>
                   <option value="standard">Standard</option>
                   <option value="extended">Rozszerzony</option>
@@ -1850,18 +1850,18 @@ body.light-theme .modal { background: var(--bg2); }
               </div>
               <div class="field">
                 <label class="fl">Aktywne sloty projektów</label>
-                <input type="number" id="settings-limit" min="1" max="20" onchange="setProjectLimit(this.value)">
+                <input type="number" id="settings-limit" min="1" max="20" data-action="setProjectLimit">
               </div>
               <div class="stack" style="gap:12px; margin-top:8px;">
                 <label class="setting-option">
-                  <input type="checkbox" id="settings-show-morning-focus" onchange="toggleSetting('showMorningFocus', this.checked)">
+                  <input type="checkbox" id="settings-show-morning-focus" data-action="toggleSetting" data-key="showMorningFocus">
                   <span class="setting-option-copy">
                     <span class="setting-option-title">Pokaż focus dnia</span>
                     <span class="setting-option-desc">Osobna karta z trzema priorytetami dnia i krótkim uzasadnieniem.</span>
                   </span>
                 </label>
                 <label class="setting-option">
-                  <input type="checkbox" id="settings-show-advanced-stats" onchange="toggleSetting('showAdvancedStats', this.checked)">
+                  <input type="checkbox" id="settings-show-advanced-stats" data-action="toggleSetting" data-key="showAdvancedStats">
                   <span class="setting-option-copy">
                     <span class="setting-option-title">Pokaż sekcje analityczne</span>
                     <span class="setting-option-desc">Pokazuje postęp, review i dodatkowe listy decyzji.</span>
@@ -1887,7 +1887,7 @@ body.light-theme .modal { background: var(--bg2); }
                 </div>
               </div>
               <div class="modal-footer" style="margin-top:0;justify-content:flex-start;">
-                <button class="btn btn-lime" type="button" onclick="addRitual()">Dodaj rytuał</button>
+                <button class="btn btn-lime" type="button" data-action="addRitual">Dodaj rytuał</button>
               </div>
               <div class="ritual-manage-list" id="ritual-manage-list"></div>
             </div>
@@ -1897,7 +1897,7 @@ body.light-theme .modal { background: var(--bg2); }
               <div class="sub-label">Wygląd</div>
               <div class="field">
                 <label class="fl">Tryb motywu</label>
-                <select id="theme-mode" onchange="setThemeMode(this.value)">
+                <select id="theme-mode" data-action="setThemeMode">
                   <option value="auto">Auto (system)</option>
                   <option value="dark">Ciemny</option>
                   <option value="light">Jasny</option>
@@ -1910,10 +1910,10 @@ body.light-theme .modal { background: var(--bg2); }
               <div class="field">
                 <label class="fl">Własne kolory</label>
                 <div class="theme-custom-grid">
-                  <div><label class="fl">Akcent</label><input type="color" id="theme-accent" value="#c8f040" onchange="updateCustomTheme()"></div>
-                  <div><label class="fl">Info</label><input type="color" id="theme-blue" value="#40a8f0" onchange="updateCustomTheme()"></div>
-                  <div><label class="fl">Ostrzeżenie</label><input type="color" id="theme-amber" value="#f0b840" onchange="updateCustomTheme()"></div>
-                  <div><label class="fl">Alert</label><input type="color" id="theme-red" value="#f04840" onchange="updateCustomTheme()"></div>
+                  <div><label class="fl">Akcent</label><input type="color" id="theme-accent" value="#c8f040" data-action="updateCustomTheme"></div>
+                  <div><label class="fl">Info</label><input type="color" id="theme-blue" value="#40a8f0" data-action="updateCustomTheme"></div>
+                  <div><label class="fl">Ostrzeżenie</label><input type="color" id="theme-amber" value="#f0b840" data-action="updateCustomTheme"></div>
+                  <div><label class="fl">Alert</label><input type="color" id="theme-red" value="#f04840" data-action="updateCustomTheme"></div>
                 </div>
               </div>
             </div>
@@ -1924,7 +1924,7 @@ body.light-theme .modal { background: var(--bg2); }
                 <div class="stat-note" id="install-help-note">Najlepsze działanie na iPhonie będzie po dodaniu Focus Huba do ekranu głównego jako PWA.</div>
               </div>
               <div class="modal-footer" style="margin-top:18px;justify-content:flex-start;">
-                <button class="btn btn-lime" type="button" onclick="promptInstallApp()">Zainstaluj / dodaj do ekranu</button>
+                <button class="btn btn-lime" type="button" data-action="promptInstallApp">Zainstaluj / dodaj do ekranu</button>
               </div>
             </div>
             <div class="daily-card" style="margin-top:16px;">
@@ -1940,21 +1940,21 @@ body.light-theme .modal { background: var(--bg2); }
                 <div class="stat-note">To urządzenie: <strong id="notification-device-text">Nieaktywne</strong></div>
                 <div class="stat-note">Ostatni błąd: <strong id="notification-error-text">—</strong></div>
                 <label class="setting-option">
-                  <input type="checkbox" id="settings-notifications-enabled" onchange="toggleSystemNotifications(this.checked)">
+                  <input type="checkbox" id="settings-notifications-enabled" data-action="toggleSystemNotifications">
                   <span class="setting-option-copy">
                     <span class="setting-option-title">Powiadomienia systemowe</span>
                     <span class="setting-option-desc">Główny przełącznik dla push notifications na tym koncie.</span>
                   </span>
                 </label>
                 <label class="setting-option">
-                  <input type="checkbox" id="settings-task-reminders-enabled" onchange="setReminderSetting('taskReminderEnabled', this.checked)">
+                  <input type="checkbox" id="settings-task-reminders-enabled" data-action="setReminderSetting" data-key="taskReminderEnabled" data-value-source="checked">
                   <span class="setting-option-copy">
                     <span class="setting-option-title">Przypomnienia o małych zadaniach</span>
                     <span class="setting-option-desc">Wyłączenie zatrzymuje wysyłanie przypomnień, ale nie usuwa ustawień zadań.</span>
                   </span>
                 </label>
                 <label class="setting-option">
-                  <input type="checkbox" id="settings-journal-reminder-enabled" onchange="setReminderSetting('journalReminderEnabled', this.checked)">
+                  <input type="checkbox" id="settings-journal-reminder-enabled" data-action="setReminderSetting" data-key="journalReminderEnabled" data-value-source="checked">
                   <span class="setting-option-copy">
                     <span class="setting-option-title">Przypomnienie o dzienniku</span>
                     <span class="setting-option-desc">Jedno krótkie przypomnienie wieczorem, jeśli wpis nadal jest pusty.</span>
@@ -1962,10 +1962,10 @@ body.light-theme .modal { background: var(--bg2); }
                 </label>
                 <div class="field">
                   <label class="fl">Godzina przypomnienia o dzienniku</label>
-                  <input type="time" id="settings-journal-reminder-time" onchange="setReminderSetting('journalReminderTime', this.value)">
+                  <input type="time" id="settings-journal-reminder-time" data-action="setReminderSetting" data-key="journalReminderTime" data-value-source="value">
                 </div>
                 <label class="setting-option">
-                  <input type="checkbox" id="settings-evening-open-tasks-enabled" onchange="setReminderSetting('eveningReminderEnabled', this.checked)">
+                  <input type="checkbox" id="settings-evening-open-tasks-enabled" data-action="setReminderSetting" data-key="eveningReminderEnabled" data-value-source="checked">
                   <span class="setting-option-copy">
                     <span class="setting-option-title">Wieczorne przypomnienie o otwartych zadaniach</span>
                     <span class="setting-option-desc">Jedno zbiorcze przypomnienie, jeśli na dziś zostały otwarte zadania.</span>
@@ -1973,10 +1973,10 @@ body.light-theme .modal { background: var(--bg2); }
                 </label>
                 <div class="field">
                   <label class="fl">Godzina wieczornego przypomnienia</label>
-                  <input type="time" id="settings-evening-open-tasks-time" onchange="setReminderSetting('eveningReminderTime', this.value)">
+                  <input type="time" id="settings-evening-open-tasks-time" data-action="setReminderSetting" data-key="eveningReminderTime" data-value-source="value">
                 </div>
                 <label class="setting-option">
-                  <input type="checkbox" id="settings-badge-enabled" onchange="setReminderSetting('badgeEnabled', this.checked)">
+                  <input type="checkbox" id="settings-badge-enabled" data-action="setReminderSetting" data-key="badgeEnabled" data-value-source="checked">
                   <span class="setting-option-copy">
                     <span class="setting-option-title">Badge na ikonie aplikacji</span>
                     <span class="setting-option-desc">Jeśli platforma wspiera badge, pokaże liczbę otwartych rzeczy na dziś.</span>
@@ -1985,8 +1985,8 @@ body.light-theme .modal { background: var(--bg2); }
                 <div class="stat-note">Powiadomienia używają standardowego dźwięku systemu.</div>
               </div>
               <div class="modal-footer" style="margin-top:18px;justify-content:flex-start;">
-                <button class="btn btn-lime" id="notification-enable-btn" type="button" onclick="requestNotificationAccess()">Włącz powiadomienia</button>
-                <button class="btn btn-ghost" id="notification-refresh-btn" type="button" onclick="refreshNotificationRegistration()">Odśwież rejestrację</button>
+                <button class="btn btn-lime" id="notification-enable-btn" type="button" data-action="requestNotificationAccess">Włącz powiadomienia</button>
+                <button class="btn btn-ghost" id="notification-refresh-btn" type="button" data-action="refreshNotificationRegistration">Odśwież rejestrację</button>
               </div>
             </div>
             <div class="daily-card" style="margin-top:16px;">
@@ -1995,7 +1995,7 @@ body.light-theme .modal { background: var(--bg2); }
                 <div class="stat-note">Usuwa wszystkie projekty, wpisy dziennika, zadania i ustawienia Focus Huba z tego konta. Operacja jest trwała.</div>
               </div>
               <div class="modal-footer" style="margin-top:18px;justify-content:flex-start;">
-                <button class="btn btn-red" onclick="confirmWipeAppData()">Usuń wszystkie dane aplikacji</button>
+                <button class="btn btn-red" data-action="confirmWipeAppData">Usuń wszystkie dane aplikacji</button>
               </div>
             </div>
           </div>
@@ -2006,7 +2006,7 @@ body.light-theme .modal { background: var(--bg2); }
         <div class="sh">
           <div class="sh-title">Dziennik</div>
           <div class="sh-right">
-                        <button class="btn btn-lime btn-sm" onclick="saveJournalEntry()">+ Zapisz wpis</button>
+                        <button class="btn btn-lime btn-sm" data-action="saveJournalEntry">+ Zapisz wpis</button>
           </div>
         </div>
 
@@ -2015,7 +2015,7 @@ body.light-theme .modal { background: var(--bg2); }
             <div class="journal-card">
               <div class="field">
                 <label class="fl">Data</label>
-                <input type="date" id="jr-date" onchange="renderDayClosePanel()">
+                <input type="date" id="jr-date" data-action="renderDayClosePanel">
               </div>
 
               <div class="field">
@@ -2031,7 +2031,7 @@ body.light-theme .modal { background: var(--bg2); }
               <div class="field">
                 <label class="fl">Nastrój 1–5</label>
                 <div class="mood-meter">
-                  <input type="range" id="jr-mood" min="1" max="5" value="3" oninput="updateMoodMeter(this.value)" style="flex:1;">
+                  <input type="range" id="jr-mood" min="1" max="5" value="3" data-action="updateMoodMeter" style="flex:1;">
                   <div class="mood-dots" id="jr-mood-viz"></div>
                 </div>
               </div>
@@ -2057,17 +2057,17 @@ body.light-theme .modal { background: var(--bg2); }
               </div>
 
               <div class="modal-footer" style="margin-top:20px;">
-                <button class="btn btn-ghost" onclick="resetJournalForm()">Wyczyść</button>
-                <button class="btn btn-lime" onclick="saveJournalEntry()">Zapisz wpis</button>
+                <button class="btn btn-ghost" data-action="resetJournalForm">Wyczyść</button>
+                <button class="btn btn-lime" data-action="saveJournalEntry">Zapisz wpis</button>
               </div>
             </div>
 
             <div class="journal-card">
               <div class="sub-label">Eksport</div>
               <div class="modal-footer" style="margin-top:0;justify-content:flex-start;">
-                <button class="btn btn-ghost" onclick="renderJournalExport()">Odśwież eksport</button>
-                <button class="btn btn-lime" onclick="copyJournalExport()">Skopiuj do schowka</button>
-                <button class="btn btn-ghost" onclick="downloadJournalExport()">Pobierz .txt</button>
+                <button class="btn btn-ghost" data-action="renderJournalExport">Odśwież eksport</button>
+                <button class="btn btn-lime" data-action="copyJournalExport">Skopiuj do schowka</button>
+                <button class="btn btn-ghost" data-action="downloadJournalExport">Pobierz .txt</button>
               </div>
               <div class="field" style="margin-top:14px;">
                 <label class="fl">Podgląd tekstu do wklejenia</label>
@@ -2092,28 +2092,28 @@ body.light-theme .modal { background: var(--bg2); }
   </div>
 </div>
 <div id="mobile-bottom-nav" class="mobile-bottom-nav">
-  <button class="mobile-nav-btn" data-page="daily" onclick="mobileNav('daily')"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"></path></svg></span><span class="m-lbl">Dziś</span></button>
-  <button class="mobile-nav-btn" data-page="journal" onclick="mobileNav('journal')"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h8.5a2.5 2.5 0 0 1 2.5 2.5v12.5l-4-2-4 2-4-2V7a2.5 2.5 0 0 1 2.5-2.5Z"></path><path d="M9 8.5h6"></path><path d="M9 11.5h6"></path><path d="M9 14.5h3.5"></path></svg></span><span class="m-lbl">Dziennik</span></button>
-  <button class="mobile-nav-btn mobile-nav-btn-hub" data-page="hub" onclick="mobileNav('hub')"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.4"></rect><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4"></rect><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4"></rect><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4"></rect></svg></span><span class="m-lbl">Hub</span></button>
-  <button class="mobile-nav-btn" data-page="upcoming" onclick="mobileNav('upcoming')"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17"></path></svg></span><span class="m-lbl">Plan</span></button>
-  <button class="mobile-nav-btn" data-page="account" onclick="mobileNav('account')"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.7"></circle><path d="M12 4.2v1.9"></path><path d="M12 17.9v1.9"></path><path d="M19.8 12h-1.9"></path><path d="M6.1 12H4.2"></path><path d="m17.5 6.5-1.3 1.3"></path><path d="m7.8 16.2-1.3 1.3"></path><path d="m17.5 17.5-1.3-1.3"></path><path d="m7.8 7.8-1.3-1.3"></path><circle cx="12" cy="12" r="7.2"></circle></svg></span><span class="m-lbl">Konto</span></button>
+  <button class="mobile-nav-btn" data-action="mobileNav" data-page="daily"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"></path></svg></span><span class="m-lbl">Dziś</span></button>
+  <button class="mobile-nav-btn" data-action="mobileNav" data-page="journal"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h8.5a2.5 2.5 0 0 1 2.5 2.5v12.5l-4-2-4 2-4-2V7a2.5 2.5 0 0 1 2.5-2.5Z"></path><path d="M9 8.5h6"></path><path d="M9 11.5h6"></path><path d="M9 14.5h3.5"></path></svg></span><span class="m-lbl">Dziennik</span></button>
+  <button class="mobile-nav-btn mobile-nav-btn-hub" data-action="mobileNav" data-page="hub"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.4"></rect><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4"></rect><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4"></rect><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4"></rect></svg></span><span class="m-lbl">Hub</span></button>
+  <button class="mobile-nav-btn" data-action="mobileNav" data-page="upcoming"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="15" rx="2"></rect><path d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17"></path></svg></span><span class="m-lbl">Plan</span></button>
+  <button class="mobile-nav-btn" data-action="mobileNav" data-page="account"><span class="m-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.7"></circle><path d="M12 4.2v1.9"></path><path d="M12 17.9v1.9"></path><path d="M19.8 12h-1.9"></path><path d="M6.1 12H4.2"></path><path d="m17.5 6.5-1.3 1.3"></path><path d="m7.8 16.2-1.3 1.3"></path><path d="m17.5 17.5-1.3-1.3"></path><path d="m7.8 7.8-1.3-1.3"></path><circle cx="12" cy="12" r="7.2"></circle></svg></span><span class="m-lbl">Konto</span></button>
 </div>
 
-<div id="mobile-menu-overlay" class="mobile-menu-overlay" onclick="toggleMobileMenu(false)">
-  <div class="mobile-menu-sheet" onclick="event.stopPropagation()">
+<div id="mobile-menu-overlay" class="mobile-menu-overlay" data-action="toggleMobileMenu" data-force="false">
+  <div class="mobile-menu-sheet" data-action="stopPropagation">
     <div class="mobile-menu-head">
       <div class="mobile-menu-title">Więcej</div>
-      <button class="topbar-icon-btn" type="button" aria-label="Zamknij menu" onclick="toggleMobileMenu(false)">✕</button>
+      <button class="topbar-icon-btn" type="button" aria-label="Zamknij menu" data-action="toggleMobileMenu" data-force="false">✕</button>
     </div>
     <div class="mobile-menu-grid">
-      <button class="mobile-menu-link" data-page="active" type="button" onclick="mobileNav('active')">Aktywne projekty</button>
-      <button class="mobile-menu-link" data-page="stats" type="button" onclick="mobileNav('stats')">Postęp</button>
-      <button class="mobile-menu-link" data-page="backlog" type="button" onclick="mobileNav('backlog')">Pomysły</button>
-      <button class="mobile-menu-link" data-page="archive" type="button" onclick="mobileNav('archive')">Archiwum</button>
-      <button class="mobile-menu-link" data-page="pride" type="button" onclick="mobileNav('pride')">Ściana dumy</button>
-      <button class="mobile-menu-link" type="button" onclick="mobileNav('account')">Konto</button>
-      <button class="mobile-menu-link" type="button" onclick="mobileQuickAdd()">+ Task na dziś</button>
-      <button class="mobile-menu-link" type="button" onclick="nav('daily'); prefillMorningFocusFromTasks(); toggleMobileMenu(false)">Uzupełnij focus</button>
+      <button class="mobile-menu-link" data-page="active" type="button" data-action="mobileNav" data-page="active">Aktywne projekty</button>
+      <button class="mobile-menu-link" data-page="stats" type="button" data-action="mobileNav" data-page="stats">Postęp</button>
+      <button class="mobile-menu-link" data-page="backlog" type="button" data-action="mobileNav" data-page="backlog">Pomysły</button>
+      <button class="mobile-menu-link" data-page="archive" type="button" data-action="mobileNav" data-page="archive">Archiwum</button>
+      <button class="mobile-menu-link" data-page="pride" type="button" data-action="mobileNav" data-page="pride">Ściana dumy</button>
+      <button class="mobile-menu-link" type="button" data-action="mobileNav" data-page="account">Konto</button>
+      <button class="mobile-menu-link" type="button" data-action="mobileQuickAdd">+ Task na dziś</button>
+      <button class="mobile-menu-link" type="button" data-action="prefillFocusMobile">Uzupełnij focus</button>
     </div>
   </div>
 </div>
@@ -2148,13 +2148,13 @@ body.light-theme .modal { background: var(--bg2); }
     <div class="field">
       <label class="fl">Kategoria</label>
       <div class="cat-pills" id="mp-cats">
-        <button class="cat-pill" data-cat="Gry" onclick="selectCat(this)" style="--cc:#c8f040;">🎮 Gry</button>
-        <button class="cat-pill" data-cat="Nauka" onclick="selectCat(this)" style="--cc:#40a8f0;">📚 Nauka</button>
-        <button class="cat-pill" data-cat="Projekt" onclick="selectCat(this)" style="--cc:#f0b840;">💡 Projekt</button>
-        <button class="cat-pill" data-cat="Kariera" onclick="selectCat(this)" style="--cc:#a0f080;">💼 Kariera</button>
-        <button class="cat-pill" data-cat="Zdrowie" onclick="selectCat(this)" style="--cc:#f08040;">🏃 Zdrowie</button>
-        <button class="cat-pill" data-cat="Związek" onclick="selectCat(this)" style="--cc:#f04880;">❤️ Związek</button>
-        <button class="cat-pill" data-cat="Inne" onclick="selectCat(this)" style="--cc:#8080f0;">· Inne</button>
+        <button class="cat-pill" data-cat="Gry" data-action="selectCat" style="--cc:#c8f040;">🎮 Gry</button>
+        <button class="cat-pill" data-cat="Nauka" data-action="selectCat" style="--cc:#40a8f0;">📚 Nauka</button>
+        <button class="cat-pill" data-cat="Projekt" data-action="selectCat" style="--cc:#f0b840;">💡 Projekt</button>
+        <button class="cat-pill" data-cat="Kariera" data-action="selectCat" style="--cc:#a0f080;">💼 Kariera</button>
+        <button class="cat-pill" data-cat="Zdrowie" data-action="selectCat" style="--cc:#f08040;">🏃 Zdrowie</button>
+        <button class="cat-pill" data-cat="Związek" data-action="selectCat" style="--cc:#f04880;">❤️ Związek</button>
+        <button class="cat-pill" data-cat="Inne" data-action="selectCat" style="--cc:#8080f0;">· Inne</button>
       </div>
     </div>
 
@@ -2200,8 +2200,8 @@ body.light-theme .modal { background: var(--bg2); }
     </div>
 
     <div class="modal-footer" id="mp-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-proj')">Anuluj</button>
-      <button class="btn btn-lime" onclick="saveProject()">Zapisz</button>
+      <button class="btn btn-ghost" data-action="closeModal" data-modal="modal-proj">Anuluj</button>
+      <button class="btn btn-lime" data-action="saveProject">Zapisz</button>
     </div>
   </div>
 </div>
@@ -2219,8 +2219,8 @@ body.light-theme .modal { background: var(--bg2); }
       <input type="text" id="arc-lesson">
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-archive')">Wróć</button>
-      <button class="btn btn-red" onclick="confirmArchive()">Archiwizuj</button>
+      <button class="btn btn-ghost" data-action="closeModal" data-modal="modal-archive">Wróć</button>
+      <button class="btn btn-red" data-action="confirmArchive">Archiwizuj</button>
     </div>
   </div>
 </div>
@@ -2233,8 +2233,8 @@ body.light-theme .modal { background: var(--bg2); }
     <div class="field"><label class="fl">Emoji / trofeum</label><input type="text" id="pr-icon" maxlength="4" style="max-width:70px;"></div>
     <div class="field"><label class="fl">Notatka</label><textarea id="pr-note" style="min-height:60px;"></textarea></div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-pride')">Anuluj</button>
-      <button class="btn btn-lime" onclick="savePride()">Dodaj</button>
+      <button class="btn btn-ghost" data-action="closeModal" data-modal="modal-pride">Anuluj</button>
+      <button class="btn btn-lime" data-action="savePride">Dodaj</button>
     </div>
   </div>
 </div>
@@ -2260,7 +2260,7 @@ body.light-theme .modal { background: var(--bg2); }
       </div>
     </div>
     <div class="modal-footer" style="margin-top:20px;">
-      <button class="btn btn-lime" onclick="saveWeeklyReview()">Zapisz przegląd tygodnia</button>
+      <button class="btn btn-lime" data-action="saveWeeklyReview">Zapisz przegląd tygodnia</button>
     </div>
   </div>
 </div>
@@ -2270,15 +2270,15 @@ body.light-theme .modal { background: var(--bg2); }
     <div class="modal-title">Zamknąć dzień?</div>
     <div class="day-close-summary" id="day-close-summary"></div>
     <div class="modal-footer" style="margin-top:20px;">
-      <button class="btn btn-ghost" onclick="dismissDayClose()">Jeszcze nie</button>
-      <button class="btn btn-lime" onclick="confirmDayClose()">Zamknij dzień</button>
+      <button class="btn btn-ghost" data-action="dismissDayClose">Jeszcze nie</button>
+      <button class="btn btn-lime" data-action="confirmDayClose">Zamknij dzień</button>
     </div>
   </div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, getIdToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 import { getMessaging, getToken, deleteToken, isSupported as isMessagingSupported, onMessage } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
 
@@ -2616,6 +2616,17 @@ function ensureDisplayNameFromAuth(user = currentUser) {
 function syncDocRef(uid) { return doc(fbDb, 'users', uid, 'app', 'state'); }
 function deviceDocRef(uid, deviceId) { return doc(fbDb, 'users', uid, 'devices', deviceId); }
 function stateHash(obj) { try { return JSON.stringify(obj); } catch (e) { return String(Date.now()); } }
+async function firebaseAuthHeaders() {
+  if (!currentUser) throw new Error('not_authenticated');
+  const token = await getIdToken(currentUser, false);
+  return { authorization: `Bearer ${token}` };
+}
+async function apiFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  const authHeaders = await firebaseAuthHeaders();
+  Object.entries(authHeaders).forEach(([key, value]) => headers.set(key, value));
+  return fetch(url, { ...options, headers });
+}
 function showAuthError(msg='') {
   const el = document.getElementById('auth-error');
   if (!el) return;
@@ -2815,7 +2826,7 @@ function syncThemeForm() {
   });
   const wrap = document.getElementById('theme-preset-list');
   if (!wrap) return;
-  wrap.innerHTML = Object.entries(THEME_PRESETS).map(([key, val]) => `<div class="theme-preset ${D.settings.themePreset===key?'active':''}" onclick="setThemePreset('${key}')"><div class="theme-swatches"><span style="background:${val.accent}"></span><span style="background:${val.blue}"></span><span style="background:${val.amber}"></span><span style="background:${val.red}"></span></div><strong>${val.label}</strong></div>`).join('') + `<div class="theme-preset ${D.settings.themePreset==='custom'?'active':''}" onclick="setThemePreset('custom')"><div class="theme-swatches"><span style="background:${D.settings.themeCustom.accent}"></span><span style="background:${D.settings.themeCustom.blue}"></span><span style="background:${D.settings.themeCustom.amber}"></span><span style="background:${D.settings.themeCustom.red}"></span></div><strong>Własny</strong></div>`;
+  wrap.innerHTML = Object.entries(THEME_PRESETS).map(([key, val]) => `<div class="theme-preset ${D.settings.themePreset===key?'active':''}" data-action="setThemePreset" data-value="${escapeHtml(key)}"><div class="theme-swatches"><span style="background:${val.accent}"></span><span style="background:${val.blue}"></span><span style="background:${val.amber}"></span><span style="background:${val.red}"></span></div><strong>${escapeHtml(val.label)}</strong></div>`).join('') + `<div class="theme-preset ${D.settings.themePreset==='custom'?'active':''}" data-action="setThemePreset" data-value="custom"><div class="theme-swatches"><span style="background:${D.settings.themeCustom.accent}"></span><span style="background:${D.settings.themeCustom.blue}"></span><span style="background:${D.settings.themeCustom.amber}"></span><span style="background:${D.settings.themeCustom.red}"></span></div><strong>Własny</strong></div>`;
 }
 function setThemeMode(mode) { D.settings.themeMode = mode; applyThemeSettings(); save(); }
 function setThemePreset(preset) {
@@ -3054,12 +3065,11 @@ function launchPageFromUrl() {
   return PAGE_TITLES[page] ? page : '';
 }
 function initStaticChrome() {
-  bindAuthButtons();
   const dateEl = document.getElementById('tb-date');
   if (dateEl) {
     dateEl.textContent = new Date().toLocaleDateString('pl-PL', { weekday:'long', day:'numeric', month:'long' });
   }
-  bindInlineActionFallbacks();
+  bindActionDelegation();
   applyThemeSettings();
   registerAppServiceWorker();
   initMessagingClient().catch((err) => console.error('Messaging init failed', err));
@@ -3102,7 +3112,6 @@ function runAppBootSequence() {
   maybeOpenWeeklyReview();
 }
 async function bootstrapApp() {
-  bindAuthButtons();
   loadLocalCache();
   initStaticChrome();
   initBrowserLifecycle();
@@ -3152,7 +3161,7 @@ function nav(page) {
   if (!pageEl) return;
   pageEl.classList.add('on');
   document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.getAttribute('onclick')?.includes(`'${page}'`)) n.classList.add('on');
+    if (n.dataset.page === page) n.classList.add('on');
   });
   updateMobileNav(page);
   updateFeatureVisibility();
@@ -3162,7 +3171,6 @@ function nav(page) {
 
   const renders = { hub: () => safeRender(renderHub, 'hub-active'), daily: () => safeRender(renderDaily, 'must-list'), upcoming: () => safeRender(renderUpcoming, 'upcoming-selected-list'), active: () => safeRender(renderActive, 'active-list'), backlog: () => safeRender(renderBacklog, 'backlog-list'), archive: () => safeRender(renderArchive, 'archive-list'), pride: () => safeRender(renderPride, 'pride-list'), journal: () => safeRender(renderJournal, 'journal-list'), stats: () => safeRender(renderStats, 'stats-category-summary'), review: () => safeRender(renderReview, 'review-week'), account: () => safeRender(renderAccount, 'account-email') };
   if (renders[page]) renders[page]();
-  bindInlineActionFallbacks();
   if (isPhoneUI()) toggleMobileMenu(false);
   maybeOpenWeeklyReview();
 }
@@ -3547,7 +3555,7 @@ async function writeDeviceRegistration(update = {}) {
 }
 async function registerDeviceTokenWithBackend(token) {
   if (!currentUser || !token) return;
-  await fetch('./api/push/register-device', {
+  await apiFetch('./api/push/register-device', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -3573,7 +3581,7 @@ async function unregisterCurrentDevice({ clearToken = false } = {}) {
     try { await deleteToken(messagingClient); } catch (err) { console.error('FCM token delete failed', err); }
   }
   if (currentUser) {
-    await fetch('./api/push/unregister-device', {
+    await apiFetch('./api/push/unregister-device', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -3803,7 +3811,7 @@ function buildJournalReminderConfig() {
 }
 async function syncReminderScheduleToBackend() {
   if (!currentUser) return;
-  await fetch('./api/reminders/sync', {
+  await apiFetch('./api/reminders/sync', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
@@ -4081,7 +4089,7 @@ async function refreshWorkerNotificationDebug() {
 }
 async function refreshPushBackendDebug() {
   try {
-    const res = await fetch('./api/push/debug');
+    const res = await apiFetch('./api/push/debug');
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.ok) throw new Error(data?.backendAuthError || data?.error || 'push_backend_debug_failed');
     mergeJournalReminderDebug({
@@ -4102,7 +4110,7 @@ async function refreshJournalReminderDebug() {
   }
   try {
     await syncReminderScheduleToBackend();
-    const res = await fetch('./api/reminders/debug', {
+    const res = await apiFetch('./api/reminders/debug', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ userId: currentUser.uid })
@@ -4205,7 +4213,7 @@ async function sendNotificationTest() {
     return;
   }
   try {
-    const res = await fetch('./api/push/test', {
+    const res = await apiFetch('./api/push/test', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -4234,7 +4242,7 @@ async function sendVisibleNotificationTest() {
     return;
   }
   try {
-    const res = await fetch('./api/push/test', {
+    const res = await apiFetch('./api/push/test', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
@@ -4280,7 +4288,7 @@ async function testJournalReminderNow(phase = 'first') {
   const selectedPhase = phase === 'second' ? 'second' : 'first';
   try {
     await syncReminderScheduleToBackend();
-    const res = await fetch('./api/reminders/test-journal', {
+    const res = await apiFetch('./api/reminders/test-journal', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ userId: currentUser.uid, phase: selectedPhase })
@@ -4605,7 +4613,7 @@ function renderHub() {
         <div class="hub-summary-text">${escapeHtml(contextSentence)}</div>
         <div class="hub-summary-meta">Aktywne sloty: ${active.length}/${lim} · liczby są dostępne po wejściu głębiej.</div>
       </div>
-      <button class="btn btn-ghost btn-sm" type="button" onclick="nav('${detailsPage}')">${detailsLabel}</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-action="nav" data-page="${detailsPage}">${detailsLabel}</button>
     </div>
   `;
 
@@ -4627,7 +4635,7 @@ function renderHub() {
   const backlogCount = D.projects.filter(p => p.status === 'backlog').length;
   for (let i = active.length; i < lim; i++) {
     const hasIdeas = backlogCount > 0;
-    slots.push(`<div class="empty-slot" onclick="${hasIdeas ? "nav('backlog')" : "openNewProject()"}">
+    slots.push(`<div class="empty-slot" data-action="${hasIdeas ? 'nav' : 'openNewProject'}"${hasIdeas ? ' data-page="backlog"' : ''}>
       <div class="empty-slot-icon">+</div>
       <div class="empty-slot-label">Wolny slot</div>
       <div class="empty-slot-note">${hasIdeas ? `Masz ${backlogCount} ${backlogCount === 1 ? 'pomysł' : 'pomysłów'} czekających — gotowy żeby jeden awansować?` : 'Masz miejsce na jeden konkretny projekt.'}</div>
@@ -4653,7 +4661,7 @@ function prepDailyDefaults() {
   const pSel = document.getElementById('daily-task-project');
   if (pSel) {
     const current = pSel.value;
-    pSel.innerHTML = '<option value="">Brak</option>' + D.projects.filter(p => p.status !== 'archived').map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    pSel.innerHTML = '<option value="">Brak</option>' + D.projects.filter(p => p.status !== 'archived').map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
     pSel.value = current || '';
   }
   syncTaskReminderForm('daily');
@@ -4762,7 +4770,7 @@ function renderDailyRituals() {
   list.innerHTML = rituals.map(ritual => {
     const done = ritualDone(date, ritual.id);
     return `<label class="ritual-item ${done ? 'done' : ''}">
-      <input type="checkbox" ${done ? 'checked' : ''} onchange="toggleRitual('${escapeJsString(ritual.id)}')">
+      <input type="checkbox" ${done ? 'checked' : ''} data-action="toggleRitual" data-id="${escapeHtml(ritual.id)}">
       <span class="ritual-text">${escapeHtml(ritual.text)}</span>
       <span class="ritual-chip">${ritualTimeLabel(ritual.timeOfDay)}</span>
     </label>`;
@@ -4779,17 +4787,17 @@ function dailyTaskHTML(task) {
   const stateText = task.done ? 'zrobione' : 'otwarte';
   const isPriority = getDailyPriorityTask(task.date)?.id === task.id;
   return `<div class="daily-task ${task.done ? 'is-done' : ''}" data-task-id="${escapeHtml(task.id)}">
-    <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleDailyTask('${task.id}')">
+    <input type="checkbox" ${task.done ? 'checked' : ''} data-action="toggleDailyTask" data-id="${escapeHtml(task.id)}">
     <div class="daily-task-main">
       <div class="daily-task-text ${task.done ? 'done' : ''}">${escapeHtml(task.text)}</div>
       <div class="daily-task-meta">${project ? 'projekt: ' + escapeHtml(project.name) + ' · ' : ''}${stateText}${task.rolledFrom ? ' · przeniesione z: ' + escapeHtml(task.rolledFrom) : ''}${task.reason ? ' · powód: ' + escapeHtml(task.reason) : ''}</div>
       ${reminderChipHTML(task)}
       <div class="daily-task-actions">
-        ${!task.done ? `<button class="daily-delete" onclick="setDailyPriorityTask('${task.id}')">${isPriority ? 'Priorytet ✓' : 'Priorytet'}</button>` : ''}
-        ${!task.done ? `<button class="daily-delete" onclick="setDailyReason('${task.id}')">Powód</button>` : ''}
-        ${!task.done ? `<button class="daily-delete" onclick="setTaskReminder('${task.id}')">Przypomnienie</button>` : ''}
-        ${task.reminderEnabled ? `<button class="daily-delete" onclick="clearTaskReminder('${task.id}')">Wyłącz przypomnienie</button>` : ''}
-        <button class="daily-delete btn-red" onclick="deleteDailyTask('${task.id}')">Usuń</button>
+        ${!task.done ? `<button class="daily-delete" data-action="setDailyPriorityTask" data-id="${escapeHtml(task.id)}">${isPriority ? 'Priorytet ✓' : 'Priorytet'}</button>` : ''}
+        ${!task.done ? `<button class="daily-delete" data-action="setDailyReason" data-id="${escapeHtml(task.id)}">Powód</button>` : ''}
+        ${!task.done ? `<button class="daily-delete" data-action="setTaskReminder" data-id="${escapeHtml(task.id)}">Przypomnienie</button>` : ''}
+        ${task.reminderEnabled ? `<button class="daily-delete" data-action="clearTaskReminder" data-id="${escapeHtml(task.id)}">Wyłącz przypomnienie</button>` : ''}
+        <button class="daily-delete btn-red" data-action="deleteDailyTask" data-id="${escapeHtml(task.id)}">Usuń</button>
       </div>
     </div>
   </div>`;
@@ -4952,14 +4960,14 @@ function renderDailyPriorityCard(tasks) {
       <div class="priority-kicker">Najważniejsze dziś</div>
       <div class="priority-main">Wybierz jedno zadanie jako główne.</div>
       <div class="priority-note">To pole pomaga ustawić kolejność dnia.</div>
-      <div class="priority-pick-list">${openTasks.slice(0, 5).map(task => `<button class="priority-pick-btn" type="button" onclick="setDailyPriorityTask('${task.id}')"><span class="priority-task-pill">${task.lane === 'must' ? 'Must' : task.lane === 'quick' ? 'Szybkie' : 'Opcjonalne'}</span><span>${escapeHtml(task.text)}</span></button>`).join('')}</div>`;
+      <div class="priority-pick-list">${openTasks.slice(0, 5).map(task => `<button class="priority-pick-btn" type="button" data-action="setDailyPriorityTask" data-id="${escapeHtml(task.id)}"><span class="priority-task-pill">${task.lane === 'must' ? 'Must' : task.lane === 'quick' ? 'Szybkie' : 'Opcjonalne'}</span><span>${escapeHtml(task.text)}</span></button>`).join('')}</div>`;
     return;
   }
   box.innerHTML = `
     <div class="priority-kicker">Najważniejsze dziś</div>
     <div class="priority-main">${escapeHtml(priority.text)}</div>
     <div class="priority-note">${priority.projectId ? `Projekt: ${escapeHtml((D.projects.find(project => project.id === priority.projectId) || {}).name || 'projekt')}.` : ''}</div>
-    <div class="priority-pick-list">${openTasks.map(task => `<button class="priority-pick-btn ${priority.id === task.id ? 'on' : ''}" type="button" onclick="setDailyPriorityTask('${task.id}')"><span>${priority.id === task.id ? '✓' : '○'}</span><span>${escapeHtml(task.text)}</span></button>`).join('')}</div>`;
+    <div class="priority-pick-list">${openTasks.map(task => `<button class="priority-pick-btn ${priority.id === task.id ? 'on' : ''}" type="button" data-action="setDailyPriorityTask" data-id="${escapeHtml(task.id)}"><span>${priority.id === task.id ? '✓' : '○'}</span><span>${escapeHtml(task.text)}</span></button>`).join('')}</div>`;
 }
 function maybePromptDayClose(date, options = {}) {
   if (date !== todayStr()) return;
@@ -5017,7 +5025,7 @@ function prepUpcomingDefaults() {
   const pSel = document.getElementById('upcoming-task-project');
   if (pSel) {
     const cur = pSel.value;
-    pSel.innerHTML = '<option value="">Brak</option>' + D.projects.filter(p => p.status !== 'archived').map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    pSel.innerHTML = '<option value="">Brak</option>' + D.projects.filter(p => p.status !== 'archived').map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
     pSel.value = cur || '';
   }
   syncTaskReminderForm('upcoming');
@@ -5037,10 +5045,10 @@ function upcomingTaskHTML(task) {
       <div class="daily-task-meta">${task.date}${project ? ' · projekt: ' + escapeHtml(project.name) : ''}${task.done ? ' · zrobione' : ''}</div>
       ${reminderChipHTML(task)}
       <div class="daily-task-actions">
-        ${task.date !== todayStr() ? `<button class="daily-delete" onclick="moveTaskToToday('${task.id}')">Na dziś</button>` : ''}
-        ${!task.done ? `<button class="daily-delete" onclick="setTaskReminder('${task.id}')">Przypomnienie</button>` : ''}
-        ${task.reminderEnabled ? `<button class="daily-delete" onclick="clearTaskReminder('${task.id}')">Wyłącz przypomnienie</button>` : ''}
-        <button class="daily-delete btn-red" onclick="deleteDailyTask('${task.id}')">Usuń</button>
+        ${task.date !== todayStr() ? `<button class="daily-delete" data-action="moveTaskToToday" data-id="${escapeHtml(task.id)}">Na dziś</button>` : ''}
+        ${!task.done ? `<button class="daily-delete" data-action="setTaskReminder" data-id="${escapeHtml(task.id)}">Przypomnienie</button>` : ''}
+        ${task.reminderEnabled ? `<button class="daily-delete" data-action="clearTaskReminder" data-id="${escapeHtml(task.id)}">Wyłącz przypomnienie</button>` : ''}
+        <button class="daily-delete btn-red" data-action="deleteDailyTask" data-id="${escapeHtml(task.id)}">Usuń</button>
       </div>
     </div>
   </div>`;
@@ -5309,13 +5317,13 @@ function renderArchive() {
   empty.style.display='none';
   el.innerHTML = arc.map(p => `
     <div class="archive-item">
-      <div class="arc-icon">${p.icon||'📦'}</div>
+      <div class="arc-icon">${escapeHtml(p.icon || '📦')}</div>
       <div class="arc-info">
-        <div class="arc-name">${p.name}</div>
-        ${p.archiveReason ? `<div class="arc-reason">${p.archiveReason}</div>` : ''}
+        <div class="arc-name">${escapeHtml(p.name)}</div>
+        ${p.archiveReason ? `<div class="arc-reason">${escapeHtml(p.archiveReason)}</div>` : ''}
         <div class="arc-meta">Zarchiwizowano ${fmtShort(p.archived)} · ${p.progress}% postępu</div>
       </div>
-      ${p.archiveLesson ? `<div class="arc-lesson">💡 ${p.archiveLesson}</div>` : ''}
+      ${p.archiveLesson ? `<div class="arc-lesson">💡 ${escapeHtml(p.archiveLesson)}</div>` : ''}
     </div>
   `).join('');
 }
@@ -5332,10 +5340,10 @@ function renderPride() {
   empty.style.display='none';
   el.innerHTML = items.map(p => `
     <div class="pride-item">
-      <div class="pride-trophy">${p.icon||'🏆'}</div>
+      <div class="pride-trophy">${escapeHtml(p.icon || '🏆')}</div>
       <div class="pride-info">
-        <div class="pride-name">${p.name}</div>
-        ${p.note ? `<div class="pride-note">${p.note}</div>` : ''}
+        <div class="pride-name">${escapeHtml(p.name)}</div>
+        ${p.note ? `<div class="pride-note">${escapeHtml(p.note)}</div>` : ''}
       </div>
       <div class="pride-date">${fmtShort(p.date)}</div>
     </div>
@@ -5542,8 +5550,8 @@ function renderJournal() {
             </div>
           </div>
           <div class="journal-actions" style="margin-top:0;">
-            <button class="btn btn-ghost btn-sm" onclick="editJournalEntry('${item.id}')">Edytuj</button>
-            <button class="btn btn-red btn-sm" onclick="deleteJournalEntry('${item.id}')">Usuń</button>
+            <button class="btn btn-ghost btn-sm" data-action="editJournalEntry" data-id="${escapeHtml(item.id)}">Edytuj</button>
+            <button class="btn btn-red btn-sm" data-action="deleteJournalEntry" data-id="${escapeHtml(item.id)}">Usuń</button>
           </div>
         </div>
         <div class="journal-body">
@@ -5572,11 +5580,11 @@ function projCardHTML(p) {
   const visibleSteps = projectCardSteps(p);
   const progress = projectProgress(p);
   return `
-    <div class="proj-card ${isDone?'done-card':''}" style="--cat-color:${cc}" onclick="openEditProject('${p.id}')">
+    <div class="proj-card ${isDone?'done-card':''}" style="--cat-color:${cc}" data-action="openEditProject" data-id="${escapeHtml(p.id)}">
       <div class="proj-top">
-        <div class="proj-icon">${p.icon||'📌'}</div>
+        <div class="proj-icon">${escapeHtml(p.icon || '📌')}</div>
         <div class="proj-meta">
-          <div class="proj-cat">${p.cat||'Projekt'}</div>
+          <div class="proj-cat">${escapeHtml(p.cat || 'Projekt')}</div>
           <div class="proj-name">${escapeHtml(p.name || p.title || 'Projekt')}</div>
         </div>
         <div class="proj-status-badge s-${p.status}">${statusLabel(p.status)}</div>
@@ -5588,7 +5596,7 @@ function projCardHTML(p) {
           ${daysLeft !== null ? `<span style="color:${daysLeft<7?'var(--red)':'var(--text3)'};">za ${daysLeft} dni</span>` : ''}
         </div>
       </div>
-      ${p.next ? `<div class="proj-next"><span class="next-arrow">→</span><span>${p.next}</span></div>` : ''}
+      ${p.next ? `<div class="proj-next"><span class="next-arrow">→</span><span>${escapeHtml(p.next)}</span></div>` : ''}
       ${visibleSteps.length ? `<div class="project-steps-preview">${visibleSteps.map((step) => `<div class="project-step-chip ${step.done ? 'done' : ''}"><span>${step.done ? '✓' : '→'} ${escapeHtml(step.text)}</span></div>`).join('')}</div>` : ''}
       <div class="proj-footer">
         <div class="last-touch">
@@ -5596,8 +5604,8 @@ function projCardHTML(p) {
           <span>ostatnio: ${touchLabel(p.touched || p.created)}</span>
         </div>
         <div style="display:flex;gap:6px;">
-          ${p.status === 'active' ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();markDone('${p.id}')" style="padding:3px 8px;font-size:0.62rem;">✓ Done</button>` : ''}
-          ${p.status === 'active' ? `<button class="btn btn-red btn-sm" onclick="event.stopPropagation();startArchive('${p.id}')" style="padding:3px 8px;font-size:0.62rem;">Archiwizuj</button>` : ''}
+          ${p.status === 'active' ? `<button class="btn btn-ghost btn-sm" data-action="markDone" data-id="${escapeHtml(p.id)}" data-stop="true" style="padding:3px 8px;font-size:0.62rem;">✓ Done</button>` : ''}
+          ${p.status === 'active' ? `<button class="btn btn-red btn-sm" data-action="startArchive" data-id="${escapeHtml(p.id)}" data-stop="true" style="padding:3px 8px;font-size:0.62rem;">Archiwizuj</button>` : ''}
         </div>
       </div>
     </div>
@@ -5606,12 +5614,12 @@ function projCardHTML(p) {
 
 function backlogItemHTML(p, compact) {
   return `
-    <div class="backlog-item" onclick="openEditProject('${p.id}')">
-      <div class="bl-icon">${p.icon||'💡'}</div>
-      <div class="bl-name">${p.name}</div>
-      ${!compact && p.why ? `<div class="bl-why">${p.why}</div>` : ''}
+    <div class="backlog-item" data-action="openEditProject" data-id="${escapeHtml(p.id)}">
+      <div class="bl-icon">${escapeHtml(p.icon || '💡')}</div>
+      <div class="bl-name">${escapeHtml(p.name)}</div>
+      ${!compact && p.why ? `<div class="bl-why">${escapeHtml(p.why)}</div>` : ''}
       <div class="bl-date">${fmtShort(p.created)}</div>
-      <button class="bl-promote" onclick="event.stopPropagation();promoteToActive('${p.id}')">
+      <button class="bl-promote" data-action="promoteToActive" data-id="${escapeHtml(p.id)}" data-stop="true">
         ${limitReached() ? '🔒 Slot zajęty' : '↑ Awansuj'}
       </button>
     </div>
@@ -5645,8 +5653,8 @@ function openNewProject(defaultStatus = 'active') {
 
   // show/hide archive btn
   document.getElementById('mp-footer').innerHTML = `
-    <button class="btn btn-ghost" onclick="closeModal('modal-proj')">Anuluj</button>
-    <button class="btn btn-lime" onclick="saveProject()">Zapisz</button>
+    <button class="btn btn-ghost" data-action="closeModal" data-modal="modal-proj">Anuluj</button>
+    <button class="btn btn-lime" data-action="saveProject">Zapisz</button>
   `;
   openModal('modal-proj');
 }
@@ -5678,11 +5686,11 @@ function openEditProject(id) {
   const isArchived = p.status === 'archived';
   document.getElementById('mp-footer').innerHTML = `
     <div style="display:flex;gap:8px;flex:1;">
-      ${!isArchived && p.status !== 'done' ? `<button class="btn btn-red btn-sm" onclick="startArchive('${id}');closeModal('modal-proj')">Archiwizuj</button>` : ''}
-      ${p.status === 'active' ? `<button class="btn btn-ghost btn-sm" onclick="markDone('${id}');closeModal('modal-proj')">✓ Done</button>` : ''}
+      ${!isArchived && p.status !== 'done' ? `<button class="btn btn-red btn-sm" data-action="startArchiveClose" data-id="${escapeHtml(id)}">Archiwizuj</button>` : ''}
+      ${p.status === 'active' ? `<button class="btn btn-ghost btn-sm" data-action="markDoneClose" data-id="${escapeHtml(id)}">✓ Done</button>` : ''}
     </div>
-    <button class="btn btn-ghost" onclick="closeModal('modal-proj')">Anuluj</button>
-    <button class="btn btn-lime" onclick="saveProject()">Zapisz</button>
+    <button class="btn btn-ghost" data-action="closeModal" data-modal="modal-proj">Anuluj</button>
+    <button class="btn btn-lime" data-action="saveProject">Zapisz</button>
   `;
   openModal('modal-proj');
 }
@@ -5890,8 +5898,8 @@ function renderRitualManager() {
       <span class="setting-option-copy"><span class="setting-option-title">Aktywny</span></span>
     </label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-ghost btn-sm" type="button" onclick="updateRitual('${escapeJsString(ritual.id)}')">Zapisz</button>
-      <button class="btn btn-red btn-sm" type="button" onclick="deleteRitual('${escapeJsString(ritual.id)}')">Usuń</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-action="updateRitual" data-id="${escapeHtml(ritual.id)}">Zapisz</button>
+      <button class="btn btn-red btn-sm" type="button" data-action="deleteRitual" data-id="${escapeHtml(ritual.id)}">Usuń</button>
     </div>
   </div>`).join('');
 }
@@ -6081,28 +6089,80 @@ window.addEventListener('focus', flushDueTaskReminders);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') flushDueTaskReminders();
 });
-function bindInlineActionFallbacks(root = document) {
-  root.querySelectorAll('[onclick]').forEach(el => {
-    if (el.dataset.boundClick === '1') return;
-    const code = el.getAttribute('onclick');
-    if (!code) return;
-    el.dataset.boundClick = '1';
-    el.removeAttribute('onclick');
-    el.addEventListener('click', function(event) {
-      try { new Function('event', `with(window){ ${code} }`).call(this, event); }
-      catch (err) { console.error(err); }
-    });
+const CLICK_ACTIONS = {
+  loginUser, registerUser, continueLocalMode, openNewProject, mobileQuickAdd,
+  focusDailyTaskInput, addDailyTask, clearDoneDailyTasks, saveMorningFocus,
+  prefillMorningFocusFromTasks, clearMorningFocus, addUpcomingTask, openAddPride,
+  logoutUser, addRitual, promptInstallApp, requestNotificationAccess,
+  refreshNotificationRegistration, confirmWipeAppData, saveJournalEntry,
+  resetJournalForm, renderJournalExport, copyJournalExport, downloadJournalExport,
+  saveProject, confirmArchive, savePride, saveWeeklyReview, dismissDayClose,
+  confirmDayClose, renderDaily, renderUpcoming, renderDayClosePanel
+};
+function boolFromDataset(value) {
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return undefined;
+}
+function bindActionDelegation() {
+  if (document.documentElement.dataset.actionDelegationBound === '1') return;
+  document.documentElement.dataset.actionDelegationBound = '1';
+  document.addEventListener('click', (event) => {
+    const el = event.target.closest('[data-action]');
+    if (!el) return;
+    const action = el.dataset.action;
+    if (el.dataset.stop === 'true' || action === 'stopPropagation') event.stopPropagation();
+    try {
+      if (action === 'stopPropagation') return;
+      if (action === 'nav') return nav(el.dataset.page || defaultLandingPage());
+      if (action === 'mobileNav') return mobileNav(el.dataset.page || defaultLandingPage());
+      if (action === 'openJournalAndFocus') { nav('journal'); focusJournalInput(); return; }
+      if (action === 'prefillFocusMobile') { nav('daily'); prefillMorningFocusFromTasks(); toggleMobileMenu(false); return; }
+      if (action === 'toggleMobileMenu') return toggleMobileMenu(boolFromDataset(el.dataset.force));
+      if (action === 'openNewProject') return openNewProject(el.dataset.status || undefined);
+      if (action === 'jumpUpcomingDate') return jumpUpcomingDate(Number(el.dataset.delta || 0));
+      if (action === 'closeModal') return closeModal(el.dataset.modal || '');
+      if (action === 'selectCat') return selectCat(el);
+      if (action === 'setThemePreset') return setThemePreset(el.dataset.value || 'lime');
+      if (action === 'startArchiveClose') { startArchive(el.dataset.id || ''); closeModal('modal-proj'); return; }
+      if (action === 'markDoneClose') { markDone(el.dataset.id || ''); closeModal('modal-proj'); return; }
+      if (['toggleRitual','toggleDailyTask','setDailyPriorityTask','setDailyReason','setTaskReminder','clearTaskReminder','deleteDailyTask','moveTaskToToday','editJournalEntry','deleteJournalEntry','openEditProject','markDone','startArchive','promoteToActive','updateRitual','deleteRitual'].includes(action)) {
+        return GLOBAL_ACTIONS[action]?.(el.dataset.id || '');
+      }
+      if (CLICK_ACTIONS[action]) return CLICK_ACTIONS[action]();
+    } catch (err) {
+      console.error(err);
+      toast('Nie udało się wykonać akcji.');
+    }
   });
-  root.querySelectorAll('[onchange]').forEach(el => {
-    if (el.dataset.boundChange === '1') return;
-    const code = el.getAttribute('onchange');
-    if (!code) return;
-    el.dataset.boundChange = '1';
-    el.removeAttribute('onchange');
-    el.addEventListener('change', function(event) {
-      try { new Function('event', `with(window){ ${code} }`).call(this, event); }
-      catch (err) { console.error(err); }
-    });
+  document.addEventListener('change', (event) => {
+    const el = event.target.closest('[data-action]');
+    if (!el) return;
+    const action = el.dataset.action;
+    try {
+      if (action === 'renderDaily') return renderDaily();
+      if (action === 'renderUpcoming') return renderUpcoming();
+      if (action === 'renderDayClosePanel') return renderDayClosePanel();
+      if (action === 'syncTaskReminderForm') return syncTaskReminderForm(el.dataset.prefix || '');
+      if (action === 'setAppMode') return setAppMode(el.value);
+      if (action === 'setProjectLimit') return setProjectLimit(el.value);
+      if (action === 'toggleSetting') return toggleSetting(el.dataset.key || '', !!el.checked);
+      if (action === 'setReminderSetting') {
+        const value = el.dataset.valueSource === 'checked' ? !!el.checked : el.value;
+        return setReminderSetting(el.dataset.key || '', value);
+      }
+      if (action === 'setThemeMode') return setThemeMode(el.value);
+      if (action === 'updateCustomTheme') return updateCustomTheme();
+      if (action === 'toggleSystemNotifications') return toggleSystemNotifications(!!el.checked);
+    } catch (err) {
+      console.error(err);
+      toast('Nie udało się zapisać ustawienia.');
+    }
+  });
+  document.addEventListener('input', (event) => {
+    const el = event.target.closest('[data-action]');
+    if (!el) return;
+    if (el.dataset.action === 'updateMoodMeter') updateMoodMeter(el.value);
   });
 }
 
