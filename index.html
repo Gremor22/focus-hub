@@ -1839,6 +1839,20 @@ body.light-theme .modal { background: var(--bg2); }
               </div>
             </div>
             <div class="daily-card" style="margin-top:16px;">
+              <div class="sub-label">Backup danych</div>
+              <div class="stack" style="gap:12px;">
+                <div class="stat-note">Wersja schematu: <strong id="account-schema-version">—</strong></div>
+                <div class="stat-note">Ostatni backup: <strong id="account-last-backup-text">—</strong></div>
+              </div>
+              <div class="modal-footer" style="margin-top:18px;justify-content:flex-start;">
+                <button class="btn btn-lime" type="button" data-action="exportFullBackup">Eksportuj JSON</button>
+                <label class="btn btn-ghost" style="cursor:pointer;">
+                  Importuj JSON
+                  <input type="file" accept="application/json,.json" data-action="importFullBackup" style="display:none;">
+                </label>
+              </div>
+            </div>
+            <div class="daily-card" style="margin-top:16px;">
               <div class="sub-label">Personalizacja</div>
               <div class="field">
                 <label class="fl">Tryb aplikacji</label>
@@ -2281,6 +2295,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, getIdToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 import { getMessaging, getToken, deleteToken, isSupported as isMessagingSupported, onMessage } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
+import { createFocusHubStorage } from "./storage.js";
 
 // ════════════════════════════════════════
 // CONFIG / CONSTANTS
@@ -2299,6 +2314,7 @@ const fbApp = initializeApp(firebaseConfig);
 const fbAuth = getAuth(fbApp);
 const fbDb = getFirestore(fbApp);
 const APP_STORAGE_KEY = 'focushub_v1';
+const CURRENT_SCHEMA_VERSION = 2;
 const THEME_PRESETS = {
   lime: { label:'Neon Lime', accent:'#c8f040', blue:'#40a8f0', amber:'#f0b840', red:'#f04840' },
   ocean: { label:'Ocean', accent:'#5cc8ff', blue:'#3f8cff', amber:'#ffb65c', red:'#ff6b7a' },
@@ -2331,6 +2347,7 @@ const PAGE_TITLES = { hub:'Hub', daily:'Dziś', upcoming:'Nadchodzące', active:
 function defaultState() {
   const modeDefaults = APP_MODES.standard.defaults;
   return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     settings: {
       name:'',
       limit: modeDefaults.limit,
@@ -2372,6 +2389,94 @@ function defaultState() {
   };
 }
 function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+function validationIssue(message, source = 'state') {
+  const error = new Error(message);
+  error.source = source;
+  return error;
+}
+function validateArrayField(state, key, source) {
+  if (state[key] == null) return true;
+  if (!Array.isArray(state[key])) throw validationIssue(`${source}: ${key} must be an array`, source);
+  return true;
+}
+function validateObjectField(state, key, source) {
+  if (state[key] == null) return true;
+  if (!isPlainObject(state[key])) throw validationIssue(`${source}: ${key} must be an object`, source);
+  return true;
+}
+function validateProjectShape(project, source) {
+  if (!isPlainObject(project)) throw validationIssue(`${source}: invalid project`, source);
+  if (project.steps != null && !Array.isArray(project.steps)) throw validationIssue(`${source}: project.steps must be an array`, source);
+  if (project.history != null && !Array.isArray(project.history)) throw validationIssue(`${source}: project.history must be an array`, source);
+}
+function validateDailyTaskShape(task, source) {
+  if (!isPlainObject(task)) throw validationIssue(`${source}: invalid daily task`, source);
+}
+function validateJournalEntryShape(entry, source) {
+  if (!isPlainObject(entry)) throw validationIssue(`${source}: invalid journal entry`, source);
+  if (entry.closeDay != null && !isPlainObject(entry.closeDay)) throw validationIssue(`${source}: journal.closeDay must be an object`, source);
+}
+function validateRitualShape(ritual, source) {
+  if (!isPlainObject(ritual)) throw validationIssue(`${source}: invalid ritual`, source);
+}
+function validateStateShape(raw, source = 'state') {
+  if (raw == null) return;
+  if (!isPlainObject(raw)) throw validationIssue(`${source}: state must be an object`, source);
+  validateObjectField(raw, 'settings', source);
+  validateObjectField(raw, 'morningFocus', source);
+  validateObjectField(raw, 'dailyPriority', source);
+  validateObjectField(raw, 'ritualLog', source);
+  ['projects','pride','journal','daily','rituals','weeklyReview'].forEach(key => validateArrayField(raw, key, source));
+  (raw.projects || []).forEach(item => validateProjectShape(item, source));
+  (raw.daily || []).forEach(item => validateDailyTaskShape(item, source));
+  (raw.journal || []).forEach(item => validateJournalEntryShape(item, source));
+  (raw.rituals || []).forEach(item => validateRitualShape(item, source));
+}
+function migrateLegacyStateToV1(state) {
+  return {
+    ...state,
+    schemaVersion: 1,
+    settings: isPlainObject(state.settings) ? state.settings : {},
+    projects: Array.isArray(state.projects) ? state.projects : [],
+    pride: Array.isArray(state.pride) ? state.pride : [],
+    journal: Array.isArray(state.journal) ? state.journal : [],
+    daily: Array.isArray(state.daily) ? state.daily : [],
+    morningFocus: isPlainObject(state.morningFocus) ? state.morningFocus : {},
+    weeklyReview: Array.isArray(state.weeklyReview) ? state.weeklyReview : [],
+    dailyPriority: isPlainObject(state.dailyPriority) ? state.dailyPriority : {}
+  };
+}
+function migrateV1StateToV2(state) {
+  return {
+    ...state,
+    schemaVersion: 2,
+    rituals: Array.isArray(state.rituals) ? state.rituals : [],
+    ritualLog: isPlainObject(state.ritualLog) ? state.ritualLog : {}
+  };
+}
+function migrateState(raw) {
+  const initial = raw == null ? defaultState() : clone(raw);
+  validateStateShape(initial, 'pre-migration');
+  let version = Number(initial.schemaVersion || 0);
+  if (!Number.isFinite(version) || version < 0) version = 0;
+  if (version > CURRENT_SCHEMA_VERSION) {
+    throw validationIssue(`unsupported_schema_version_${version}`, 'migration');
+  }
+  let next = initial;
+  if (version < 1) {
+    next = migrateLegacyStateToV1(next);
+    version = 1;
+  }
+  if (version < 2) {
+    next = migrateV1StateToV2(next);
+    version = 2;
+  }
+  validateStateShape(next, 'post-migration');
+  return next;
+}
 function hydrateState(raw) {
   const base = defaultState();
   const src = raw && typeof raw === 'object' ? raw : {};
@@ -2518,10 +2623,17 @@ function normalizeStateShape(state = D) {
     deviceId: rawSettings.deviceId || makeDeviceId()
   };
   S.projects.forEach(project => { project.progress = projectProgress(project); });
+  S.schemaVersion = CURRENT_SCHEMA_VERSION;
   return S;
 }
+function validateAndMigrateState(raw, source = 'state') {
+  const migrated = migrateState(raw);
+  const normalized = normalizeStateShape(hydrateState(migrated));
+  validateStateShape(normalized, source);
+  return normalized;
+}
 function normalizeAppState(raw) {
-  return normalizeStateShape(hydrateState(raw));
+  return validateAndMigrateState(raw, 'normalize');
 }
 let D = defaultState();
 let editingId = null;
@@ -2616,6 +2728,22 @@ function ensureDisplayNameFromAuth(user = currentUser) {
 function syncDocRef(uid) { return doc(fbDb, 'users', uid, 'app', 'state'); }
 function deviceDocRef(uid, deviceId) { return doc(fbDb, 'users', uid, 'devices', deviceId); }
 function stateHash(obj) { try { return JSON.stringify(obj); } catch (e) { return String(Date.now()); } }
+let storageLayer = null;
+function storage() {
+  if (!storageLayer) {
+    storageLayer = createFocusHubStorage({
+      appStorageKey: APP_STORAGE_KEY,
+      localStorage,
+      validateAndMigrateState,
+      normalizeForStorage: normalizeAppState,
+      syncDocRef,
+      setDoc,
+      onSnapshot,
+      serverTimestamp
+    });
+  }
+  return storageLayer;
+}
 async function firebaseAuthHeaders() {
   if (!currentUser) throw new Error('not_authenticated');
   const token = await getIdToken(currentUser, false);
@@ -2683,18 +2811,14 @@ function closeAuthOverlay() {
 // LOCAL CACHE
 // ════════════════════════════════════════
 function loadLocalCache() {
-  const cached = localStorage.getItem(APP_STORAGE_KEY);
-  if (cached) {
-    try { D = normalizeAppState(JSON.parse(cached)); }
-    catch (e) { D = defaultState(); }
-  } else {
-    D = defaultState();
-  }
+  const result = storage().loadLocal();
+  if (result.error) console.warn('Local state fallback', result.error);
+  D = result.state || defaultState();
   ensureDisplayNameFromAuth();
 }
 function saveLocalCache() {
   if (D?.settings) D.settings.lastLocalSaveAt = new Date().toISOString();
-  localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(D));
+  D = storage().saveLocal(D);
   setSyncState(currentUser ? '' : (APP_RUNTIME.localMode ? 'bad' : ''), currentUser ? 'Zapisano lokalnie' : (APP_RUNTIME.localMode ? 'Brak połączenia' : 'Zapisano lokalnie'));
   scheduleBadgeSync();
   scheduleReminderSync();
@@ -2988,13 +3112,10 @@ async function pushStateToCloud(reason='save') {
       }
       APP_RUNTIME.pendingCloudHash = hash;
       setSyncState('', 'Synchronizowanie...');
-      await setDoc(syncDocRef(currentUser.uid), {
-        state: cleanState,
-        updatedAt: serverTimestamp(),
-        revision: Date.now(),
+      await storage().saveRemote(currentUser.uid, cleanState, {
         updatedBy: currentUser.email || '',
         lastWriterDevice: D.settings.deviceId || ''
-      }, { merge: true });
+      });
       setSyncState('', 'Synchronizowanie...');
     } catch (e) {
       console.error(e);
@@ -3006,13 +3127,10 @@ async function pushStateToCloud(reason='save') {
 async function startCloudSyncForUser(user) {
   stopCloudSync();
   setSyncState('', 'Synchronizowanie...');
-  const ref = syncDocRef(user.uid);
   await new Promise((resolve) => {
     let firstSnapshotHandled = false;
-    remoteUnsub = onSnapshot(ref, (snap) => {
-      const payload = snap.data() || {};
-      const incomingState = payload.state ? normalizeAppState(payload.state) : null;
-      if (incomingState) {
+    remoteUnsub = storage().loadRemote(user.uid, {
+      onState: (incomingState) => {
         const incomingHash = stateHash(incomingState);
         const runtimeHash = stateHash(D);
         const shouldHydrateFromCloud = incomingHash !== runtimeHash || !firstSnapshotHandled;
@@ -3034,22 +3152,29 @@ async function startCloudSyncForUser(user) {
           saveLocalCache();
         }
         setSyncState(APP_RUNTIME.pendingCloudHash ? '' : 'ok', APP_RUNTIME.pendingCloudHash ? 'Synchronizowanie...' : 'Zsynchronizowano');
-      } else {
+        if (APP_RUNTIME.booted) renderCurrentPage();
+        if (!firstSnapshotHandled) {
+          firstSnapshotHandled = true;
+          resolve();
+        }
+      },
+      onEmpty: () => {
         ensureDisplayNameFromAuth(user);
         pushStateToCloud('immediate');
-      }
-      if (APP_RUNTIME.booted) renderCurrentPage();
-      if (!firstSnapshotHandled) {
-        firstSnapshotHandled = true;
-        resolve();
-      }
-    }, (err) => {
-      console.error(err);
-      setSyncState('bad', navigator.onLine === false ? 'Brak połączenia' : 'Błąd synchronizacji');
-      toast('Nie udało się zsynchronizować zmian. Dane są tylko lokalnie.');
-      if (!firstSnapshotHandled) {
-        firstSnapshotHandled = true;
-        resolve();
+        if (APP_RUNTIME.booted) renderCurrentPage();
+        if (!firstSnapshotHandled) {
+          firstSnapshotHandled = true;
+          resolve();
+        }
+      },
+      onError: (err) => {
+        console.error(err);
+        setSyncState('bad', navigator.onLine === false ? 'Brak połączenia' : 'Błąd synchronizacji');
+        toast('Nie udało się zsynchronizować zmian. Dane są tylko lokalnie.');
+        if (!firstSnapshotHandled) {
+          firstSnapshotHandled = true;
+          resolve();
+        }
       }
     });
   });
@@ -4418,7 +4543,7 @@ function backupStatusLabel() {
   return `Ostatni backup: ${d} dni temu.`;
 }
 function fullBackupPayload() {
-  return { meta: { app: 'Focus Hub + Dziennik + Daily', exportedAt: new Date().toISOString(), version: 5 }, data: D };
+  return storage().exportBackup(D).payload;
 }
 function meaningfulDatesSet() {
   const set = new Set();
@@ -5231,43 +5356,41 @@ function saveWeeklyReview() {
 }
 
 function exportFullBackup() {
-  const payload = JSON.stringify(fullBackupPayload(), null, 2);
-  const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+  D.settings.lastBackupAt = new Date().toISOString();
+  D = normalizeAppState(D);
+  const backup = storage().exportBackup(D);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `focus-hub-backup-${todayStr()}.json`;
+  a.href = URL.createObjectURL(backup.blob);
+  a.download = backup.filename;
   a.click();
   URL.revokeObjectURL(a.href);
-  D.settings.lastBackupAt = new Date().toISOString();
   save();
   renderHub();
+  renderAccount();
   const current = document.querySelector('.page.on')?.id?.replace('page-','');
   if (current === 'daily') renderDaily();
   toast('Backup zapisany do pliku JSON.');
 }
-function importFullBackup(event) {
+async function importFullBackup(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const raw = JSON.parse(reader.result);
-      const incoming = raw.data ? raw.data : raw;
-      if (!confirm('Zaimportować backup i zastąpić obecne dane?')) return;
-      D = normalizeAppState(incoming);
-      ensureDisplayNameFromAuth(currentUser);
-      save();
-      prepJournalDefaults();
-      prepDailyDefaults();
-      nav('hub');
-      toast('Backup zaimportowany.');
-    } catch (e) {
-      alert('Nie udało się wczytać pliku backupu.');
-    } finally {
-      event.target.value = '';
-    }
-  };
-  reader.readAsText(file);
+  try {
+    const incoming = await storage().importBackup(file);
+    if (!confirm('Zaimportować backup i zastąpić obecne dane?')) return;
+    D = incoming;
+    ensureDisplayNameFromAuth(currentUser);
+    save();
+    prepJournalDefaults();
+    prepDailyDefaults();
+    renderAll();
+    nav('hub');
+    toast('Backup zaimportowany.');
+  } catch (e) {
+    console.error(e);
+    alert('Nie udało się wczytać pliku backupu.');
+  } finally {
+    event.target.value = '';
+  }
 }
 
 // ════════════════════════════════════════
@@ -5952,6 +6075,8 @@ function renderAccount() {
   const syncEl = document.getElementById('account-sync-text');
   if (emailEl) emailEl.textContent = currentUser?.email || 'lokalnie / brak konta';
   if (syncEl) syncEl.textContent = APP_RUNTIME.syncText || 'Zapisano lokalnie';
+  setText('account-schema-version', String(D.schemaVersion || CURRENT_SCHEMA_VERSION));
+  setText('account-last-backup-text', formatSavedAt(D.settings.lastBackupAt));
   updateUserChip();
   const lim = document.getElementById('settings-limit'); if (lim) lim.value = D.settings.limit || 3;
   const am = document.getElementById('settings-app-mode'); if (am) am.value = D.settings.appMode || 'standard';
@@ -6096,7 +6221,7 @@ const CLICK_ACTIONS = {
   logoutUser, addRitual, promptInstallApp, requestNotificationAccess,
   refreshNotificationRegistration, confirmWipeAppData, saveJournalEntry,
   resetJournalForm, renderJournalExport, copyJournalExport, downloadJournalExport,
-  saveProject, confirmArchive, savePride, saveWeeklyReview, dismissDayClose,
+  exportFullBackup, saveProject, confirmArchive, savePride, saveWeeklyReview, dismissDayClose,
   confirmDayClose, renderDaily, renderUpcoming, renderDayClosePanel
 };
 function boolFromDataset(value) {
@@ -6143,6 +6268,7 @@ function bindActionDelegation() {
       if (action === 'renderDaily') return renderDaily();
       if (action === 'renderUpcoming') return renderUpcoming();
       if (action === 'renderDayClosePanel') return renderDayClosePanel();
+      if (action === 'importFullBackup') return importFullBackup(event);
       if (action === 'syncTaskReminderForm') return syncTaskReminderForm(el.dataset.prefix || '');
       if (action === 'setAppMode') return setAppMode(el.value);
       if (action === 'setProjectLimit') return setProjectLimit(el.value);
