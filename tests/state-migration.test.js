@@ -18,6 +18,7 @@ describe('state migrations and metadata', () => {
     expect(migrated.schemaVersion).toBe(appState.CURRENT_SCHEMA_VERSION);
     expect(migrated.projects[0].updatedAt).toBeTruthy();
     expect(migrated.daily[0].updatedAt).toBe('2026-05-10T08:00:00.000Z');
+    expect(migrated.daily[0].deletedAt).toBe('');
     expect(migrated.journal[0].updatedByDevice).toBe('device-test');
     expect(migrated.rituals[0].updatedAt).toBe('2026-05-09T08:00:00.000Z');
     expect(migrated.settings.lastModifiedAt).toBeTruthy();

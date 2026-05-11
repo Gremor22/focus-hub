@@ -2314,7 +2314,7 @@ const fbApp = initializeApp(firebaseConfig);
 const fbAuth = getAuth(fbApp);
 const fbDb = getFirestore(fbApp);
 const APP_STORAGE_KEY = 'focushub_v1';
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 const THEME_PRESETS = {
   lime: { label:'Neon Lime', accent:'#c8f040', blue:'#40a8f0', amber:'#f0b840', red:'#f04840' },
   ocean: { label:'Ocean', accent:'#5cc8ff', blue:'#3f8cff', amber:'#ffb65c', red:'#ff6b7a' },
@@ -2396,6 +2396,9 @@ function validIsoDateTime(value) {
   if (!value) return '';
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+}
+function optionalTimestamp(value) {
+  return validIsoDateTime(value) || '';
 }
 function metadataTimestamp(...values) {
   for (const value of values) {
@@ -2498,6 +2501,20 @@ function migrateV2StateToV3(state) {
     rituals: Array.isArray(state.rituals) ? state.rituals.map(stampEntity) : []
   };
 }
+function migrateV3StateToV4(state) {
+  const keepDeletedAt = (entity) => ({
+    ...entity,
+    deletedAt: optionalTimestamp(entity?.deletedAt)
+  });
+  return {
+    ...state,
+    schemaVersion: 4,
+    projects: Array.isArray(state.projects) ? state.projects.map(keepDeletedAt) : [],
+    daily: Array.isArray(state.daily) ? state.daily.map(keepDeletedAt) : [],
+    journal: Array.isArray(state.journal) ? state.journal.map(keepDeletedAt) : [],
+    rituals: Array.isArray(state.rituals) ? state.rituals.map(keepDeletedAt) : []
+  };
+}
 function migrateState(raw) {
   const initial = raw == null ? defaultState() : clone(raw);
   validateStateShape(initial, 'pre-migration');
@@ -2518,6 +2535,10 @@ function migrateState(raw) {
   if (version < 3) {
     next = migrateV2StateToV3(next);
     version = 3;
+  }
+  if (version < 4) {
+    next = migrateV3StateToV4(next);
+    version = 4;
   }
   validateStateShape(next, 'post-migration');
   return next;
@@ -2572,6 +2593,7 @@ function normalizeStateShape(state = D) {
     touched: toIso(p.touched || p.updatedAt || p.created || p.createdAt || todayStr()) || todayStr(),
     updatedAt: metadataTimestamp(p.updatedAt, p.touched, p.createdAt, p.created),
     updatedByDevice: p.updatedByDevice || fallbackDeviceId,
+    deletedAt: optionalTimestamp(p.deletedAt),
     history: Array.isArray(p.history) ? p.history : []
   })) : [];
   S.daily = Array.isArray(S.daily) ? S.daily.map((t, idx) => ({
@@ -2589,6 +2611,7 @@ function normalizeStateShape(state = D) {
     remindAt: t.remindAt || t.reminderAt || '',
     reminderSentAt: t.reminderSentAt || t.lastReminderSentAt || t.reminderLastTriggeredAt || '',
     reminderDismissedAt: t.reminderDismissedAt || (t.reminderDismissed ? new Date().toISOString() : ''),
+    deletedAt: optionalTimestamp(t.deletedAt),
   })) : [];
   S.journal = Array.isArray(S.journal) ? S.journal.map((j, idx) => ({
     id: String(j.id || Date.now() + idx),
@@ -2602,7 +2625,8 @@ function normalizeStateShape(state = D) {
     closeNote: j.closeNote || '',
     createdAt: j.createdAt || new Date().toISOString(),
     updatedAt: metadataTimestamp(j.updatedAt, j.createdAt),
-    updatedByDevice: j.updatedByDevice || fallbackDeviceId
+    updatedByDevice: j.updatedByDevice || fallbackDeviceId,
+    deletedAt: optionalTimestamp(j.deletedAt)
   })) : [];
   S.rituals = Array.isArray(S.rituals) ? S.rituals.map((r, idx) => ({
     id: String(r.id || Date.now() + idx),
@@ -2611,8 +2635,9 @@ function normalizeStateShape(state = D) {
     active: r.active !== false,
     createdAt: r.createdAt || new Date().toISOString(),
     updatedAt: metadataTimestamp(r.updatedAt, r.createdAt),
-    updatedByDevice: r.updatedByDevice || fallbackDeviceId
-  })).filter(r => r.text) : [];
+    updatedByDevice: r.updatedByDevice || fallbackDeviceId,
+    deletedAt: optionalTimestamp(r.deletedAt)
+  })).filter(r => r.text || r.deletedAt) : [];
   S.ritualLog = (S.ritualLog && typeof S.ritualLog === 'object') ? Object.fromEntries(Object.entries(S.ritualLog).map(([date, value]) => {
     const day = toIso(date);
     const raw = value && typeof value === 'object' ? value : {};
@@ -2690,6 +2715,88 @@ function validateAndMigrateState(raw, source = 'state') {
 }
 function normalizeAppState(raw) {
   return validateAndMigrateState(raw, 'normalize');
+}
+function isDeleted(item) {
+  return !!item?.deletedAt;
+}
+function visibleItems(items) {
+  return (items || []).filter(item => !isDeleted(item));
+}
+function visibleProjects() { return visibleItems(D.projects); }
+function visibleDailyTasks() { return visibleItems(D.daily); }
+function visibleJournalEntries() { return visibleItems(D.journal); }
+function visibleRituals() { return visibleItems(D.rituals); }
+function markEntityDeleted(item) {
+  if (!item) return '';
+  const stamp = nowIso();
+  item.deletedAt = stamp;
+  item.updatedAt = stamp;
+  item.updatedByDevice = D.settings?.deviceId || '';
+  return stamp;
+}
+function firstTimestampValue(...values) {
+  for (const value of values) {
+    const iso = validIsoDateTime(value);
+    if (!iso) continue;
+    const time = new Date(iso).getTime();
+    if (Number.isFinite(time)) return time;
+  }
+  return Number.NEGATIVE_INFINITY;
+}
+function compareEntityVersions(localItem, remoteItem) {
+  const localTime = firstTimestampValue(localItem?.deletedAt, localItem?.updatedAt, localItem?.touched, localItem?.createdAt, localItem?.created);
+  const remoteTime = firstTimestampValue(remoteItem?.deletedAt, remoteItem?.updatedAt, remoteItem?.touched, remoteItem?.createdAt, remoteItem?.created);
+  if (remoteTime > localTime) return 'remote';
+  return 'local';
+}
+function mergeEntityCollection(localItems = [], remoteItems = []) {
+  const localMap = new Map((Array.isArray(localItems) ? localItems : []).filter(item => item?.id != null).map(item => [String(item.id), item]));
+  const remoteMap = new Map((Array.isArray(remoteItems) ? remoteItems : []).filter(item => item?.id != null).map(item => [String(item.id), item]));
+  const ids = [...new Set([...localMap.keys(), ...remoteMap.keys()])];
+  return ids.map((id) => {
+    const localItem = localMap.get(id);
+    const remoteItem = remoteMap.get(id);
+    if (!localItem) return clone(remoteItem);
+    if (!remoteItem) return clone(localItem);
+    return clone(compareEntityVersions(localItem, remoteItem) === 'remote' ? remoteItem : localItem);
+  });
+}
+function mergeObjectMap(localMap, remoteMap) {
+  return {
+    ...(isPlainObject(remoteMap) ? remoteMap : {}),
+    ...(isPlainObject(localMap) ? localMap : {})
+  };
+}
+function mergeSettings(localSettings = {}, remoteSettings = {}) {
+  const localTime = firstTimestampValue(localSettings.lastModifiedAt, localSettings.lastLocalSaveAt, localSettings.lastCloudSyncAt);
+  const remoteTime = firstTimestampValue(remoteSettings.lastModifiedAt, remoteSettings.lastLocalSaveAt, remoteSettings.lastCloudSyncAt);
+  const chosen = remoteTime > localTime ? remoteSettings : localSettings;
+  return {
+    ...chosen,
+    deviceId: localSettings.deviceId || chosen.deviceId || makeDeviceId(),
+    lastLocalSaveAt: localSettings.lastLocalSaveAt || chosen.lastLocalSaveAt || '',
+    lastCloudSyncAt: localSettings.lastCloudSyncAt || chosen.lastCloudSyncAt || ''
+  };
+}
+function mergeAppState(localState, remoteState) {
+  const local = normalizeAppState(localState || defaultState());
+  const remote = normalizeAppState(remoteState || defaultState());
+  const merged = hydrateState({
+    ...remote,
+    ...local,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    settings: mergeSettings(local.settings, remote.settings),
+    projects: mergeEntityCollection(local.projects, remote.projects),
+    daily: mergeEntityCollection(local.daily, remote.daily),
+    journal: mergeEntityCollection(local.journal, remote.journal),
+    rituals: mergeEntityCollection(local.rituals, remote.rituals),
+    pride: mergeEntityCollection(local.pride, remote.pride),
+    weeklyReview: mergeEntityCollection(local.weeklyReview, remote.weeklyReview),
+    ritualLog: mergeObjectMap(local.ritualLog, remote.ritualLog),
+    morningFocus: mergeObjectMap(local.morningFocus, remote.morningFocus),
+    dailyPriority: mergeObjectMap(local.dailyPriority, remote.dailyPriority)
+  });
+  return normalizeAppState(merged);
 }
 let D = defaultState();
 let editingId = null;
@@ -3259,11 +3366,16 @@ async function startCloudSyncForUser(user) {
         const shouldHydrateFromCloud = incomingHash !== runtimeHash || !firstSnapshotHandled;
         lastRemoteHash = incomingHash;
         if (shouldHydrateFromCloud) {
+          const mergedState = mergeAppState(D, incomingState);
+          const mergedHash = stateHash(mergedState);
           suppressRemoteWrite = true;
-          D = incomingState;
+          D = mergedState;
           ensureDisplayNameFromAuth(user);
           saveLocalCache();
           suppressRemoteWrite = false;
+          if (mergedHash !== incomingHash) {
+            pushStateToCloud('sync:merge', { skipLocal: true });
+          }
         }
         if (APP_RUNTIME.pendingCloudHash === incomingHash) {
           APP_RUNTIME.pendingCloudHash = '';
@@ -3512,10 +3624,10 @@ function messageCopy(key, vars = {}) {
 }
 function getDailyPriorityTask(date = getDailySelectedDate()) {
   const taskId = D.dailyPriority?.[date];
-  return (D.daily || []).find(task => String(task.id) === String(taskId) && task.date === date) || null;
+  return visibleDailyTasks().find(task => String(task.id) === String(taskId) && task.date === date) || null;
 }
 function setDailyPriorityTask(id) {
-  const task = (D.daily || []).find(t => String(t.id) === String(id));
+  const task = visibleDailyTasks().find(t => String(t.id) === String(id));
   if (!task) return;
   D.dailyPriority = D.dailyPriority || {};
   D.dailyPriority[task.date] = task.id;
@@ -3542,7 +3654,7 @@ function maybeOpenWeeklyReview() {
   openModal('modal-weekly-review');
 }
 function completedTasksForDate(date) {
-  return (D.daily || []).filter(task => task.date === date && task.done);
+  return visibleDailyTasks().filter(task => task.date === date && task.done);
 }
 function prefillJournalForDayClose(date) {
   const tasks = completedTasksForDate(date);
@@ -3555,7 +3667,7 @@ function prefillJournalForDayClose(date) {
 }
 function latestOpenDailyDateBeforeToday() {
   const today = todayStr();
-  const dates = [...new Set((D.daily || []).filter(t => !t.done && t.date && t.date < today).map(t => t.date))].sort();
+  const dates = [...new Set(visibleDailyTasks().filter(t => !t.done && t.date && t.date < today).map(t => t.date))].sort();
   return dates.length ? dates[dates.length - 1] : '';
 }
 function canUseNotifications() { return typeof window !== 'undefined' && 'Notification' in window; }
@@ -3724,10 +3836,10 @@ function notificationPermissionLabel(permission = 'default') {
   return 'Brak zgody';
 }
 function currentJournalEntry(date = todayStr()) {
-  return (D.journal || []).find((entry) => entry.date === date) || null;
+  return visibleJournalEntries().find((entry) => entry.date === date) || null;
 }
 function openTasksTodayCount() {
-  return (D.daily || []).filter((task) => task.date === todayStr() && !task.done).length;
+  return visibleDailyTasks().filter((task) => task.date === todayStr() && !task.done).length;
 }
 function openThingsBadgeCount() {
   const openTasks = openTasksTodayCount();
@@ -3936,7 +4048,7 @@ function scheduleReminderTimers() {
   scheduleDayBoundaryRefresh();
   flushDueTaskReminders();
   if (!D.settings.notificationsEnabled || !notificationsAllowed()) return;
-  (D.daily || []).forEach(task => {
+  visibleDailyTasks().forEach(task => {
     if (!task?.reminderEnabled || !task.remindAt || task.done || task.reminderSentAt || task.reminderDismissedAt) return;
     const diff = new Date(task.remindAt).getTime() - Date.now();
     if (!Number.isFinite(diff) || diff <= 0 || diff > 2147483647) return;
@@ -3976,7 +4088,7 @@ function scheduleJournalReminderTimers() {
 }
 function flushDueTaskReminders() {
   if (!D.settings.notificationsEnabled || !D.settings.taskReminderEnabled || !notificationsAllowed()) return;
-  (D.daily || []).forEach(task => {
+  visibleDailyTasks().forEach(task => {
     if (taskReminderIsPending(task)) triggerTaskReminder(task.id);
   });
 }
@@ -3998,10 +4110,10 @@ function scheduleEveningOpenTasksReminder() {
   reminderTimers.set('evening-open-tasks', window.setTimeout(triggerEveningOpenTasksReminder, diff));
 }
 function triggerTaskReminder(taskId) {
-  const task = (D.daily || []).find(item => String(item.id) === String(taskId));
+  const task = visibleDailyTasks().find(item => String(item.id) === String(taskId));
   if (!taskReminderIsPending(task)) return;
   task.reminderSentAt = new Date().toISOString();
-  const project = task.projectId ? D.projects.find(p => p.id === task.projectId) : null;
+  const project = task.projectId ? visibleProjects().find(p => p.id === task.projectId) : null;
   new Notification('Przypomnienie', {
     body: project ? `${task.text} · projekt: ${project.name}` : task.text,
     tag: `task-${task.id}`,
@@ -4024,7 +4136,7 @@ function triggerJournalReminder(type = 'primary') {
   });
 }
 function triggerEveningOpenTasksReminder() {
-  const open = (D.daily || []).filter(task => task.date === todayStr() && !task.done);
+  const open = visibleDailyTasks().filter(task => task.date === todayStr() && !task.done);
   if (open.length && D.settings.notificationsEnabled && D.settings.taskReminderEnabled && D.settings.eveningReminderEnabled && notificationsAllowed()) {
     new Notification('Masz otwarte zadania na dziś', {
       body: open.length === 1 ? 'Na dziś została jeszcze jedna rzecz do domknięcia.' : `Masz jeszcze ${open.length} otwarte zadania na dziś.`,
@@ -4038,10 +4150,10 @@ function buildReminderSchedule() {
   if (!currentUser || !D.settings.notificationsEnabled) return [];
   const reminders = [];
   if (D.settings.taskReminderEnabled) {
-    (D.daily || [])
+    visibleDailyTasks()
       .filter(task => task.reminderEnabled && task.remindAt && !task.done && !task.reminderDismissedAt)
       .forEach(task => {
-        const project = task.projectId ? D.projects.find((item) => item.id === task.projectId) : null;
+        const project = task.projectId ? visibleProjects().find((item) => item.id === task.projectId) : null;
         reminders.push({
           id: `task-${task.id}-${task.remindAt}`,
           kind: 'task',
@@ -4082,7 +4194,7 @@ function buildJournalReminderConfig() {
     journalReminderFollowupEnabled: false,
     journalReminderFollowupTime: '',
     timezone: timeZone,
-    journalDates: [...new Set((D.journal || []).map(entry => entry?.date).filter(Boolean))],
+    journalDates: [...new Set(visibleJournalEntries().map(entry => entry?.date).filter(Boolean))],
     updatedAt: new Date().toISOString()
   };
 }
@@ -4404,7 +4516,7 @@ async function refreshJournalReminderDebug() {
   }
 }
 function setTaskReminder(id) {
-  const task = (D.daily || []).find(item => String(item.id) === String(id));
+  const task = visibleDailyTasks().find(item => String(item.id) === String(id));
   if (!task || task.done) return;
   const current = task.remindAt ? new Date(task.remindAt) : null;
   const currentDate = current && !Number.isNaN(current.getTime()) ? current.toISOString().slice(0,10) : (task.date || todayStr());
@@ -4425,7 +4537,7 @@ function setTaskReminder(id) {
   toast('Przypomnienie ustawione.');
 }
 function clearTaskReminder(id) {
-  const task = (D.daily || []).find(item => String(item.id) === String(id));
+  const task = visibleDailyTasks().find(item => String(item.id) === String(id));
   if (!task) return;
   task.reminderEnabled = false;
   task.reminderDismissedAt = new Date().toISOString();
@@ -4616,9 +4728,9 @@ function rollOpenTasksForward(showToast = true, sourceDate = '') {
   const today = todayStr();
   const from = sourceDate || latestOpenDailyDateBeforeToday();
   if (!from || from >= today) { if (showToast) toast('Nie ma starszych otwartych zadań do przeniesienia.'); return 0; }
-  const existingKeys = new Set((D.daily || []).filter(t => t.date === today && !t.done).map(t => `${t.text}__${t.lane}__${t.projectId||''}`));
+  const existingKeys = new Set(visibleDailyTasks().filter(t => t.date === today && !t.done).map(t => `${t.text}__${t.lane}__${t.projectId||''}`));
   let moved = 0;
-  (D.daily || []).forEach(task => {
+  visibleDailyTasks().forEach(task => {
     if (!task.done && task.date === from) {
       const key = `${task.text}__${task.lane}__${task.projectId||''}`;
       if (existingKeys.has(key)) return;
@@ -4633,14 +4745,14 @@ function rollOpenTasksForward(showToast = true, sourceDate = '') {
   if (moved) {
     D.settings.lastDailyRollDate = today;
     D.settings.lastDailyRollFrom = from;
-    save({ entities: (D.daily || []).filter(task => task.rolledAt && task.date === today).map(task => ({ entity:'dailyTask', id:task.id })), reason:'daily:roll-forward' });
+    save({ entities: visibleDailyTasks().filter(task => task.rolledAt && task.date === today).map(task => ({ entity:'dailyTask', id:task.id })), reason:'daily:roll-forward' });
     if (showToast) { renderDaily(); toast(`Przeniesiono ${moved} otwarte zad${moved===1?'anie':'ania'} na dziś.`); }
   } else if (showToast) toast('Nie było nic nowego do przeniesienia.');
   return moved;
 }
 function fmtShort(s) { if(!s) return ''; return new Date(s).toLocaleDateString('pl-PL',{day:'numeric',month:'short'}); }
 function daysSince(s) { if(!s) return 999; return Math.floor((Date.now() - new Date(s)) / 86400000); }
-function activeProjects() { return D.projects.filter(p => p.status === 'active'); }
+function activeProjects() { return visibleProjects().filter(p => p.status === 'active'); }
 function limitReached() { return activeProjects().length >= D.settings.limit; }
 
 function touchDotClass(s) {
@@ -4661,7 +4773,7 @@ function touchLabel(s) {
 function catColor(cat) { return CAT_COLORS[cat] || '#c8f040'; }
 
 function journalEntriesSorted() {
-  return [...(D.journal || [])].sort((a,b) => {
+  return [...visibleJournalEntries()].sort((a,b) => {
     const da = (a.date || '') + 'T00:00:00';
     const db = (b.date || '') + 'T00:00:00';
     return db.localeCompare(da) || (b.createdAt || '').localeCompare(a.createdAt || '');
@@ -4674,7 +4786,7 @@ function escapeJsString(str) {
   return String(str ?? '').replaceAll('\\', '\\\\').replaceAll("'", "\\'");
 }
 function hasAnyData() {
-  return !!(D.projects.length || D.pride.length || (D.journal || []).length || (D.daily || []).length || (D.rituals || []).length);
+  return !!(visibleProjects().length || D.pride.length || visibleJournalEntries().length || visibleDailyTasks().length || visibleRituals().length);
 }
 function daysSinceBackup() {
   if (!D.settings.lastBackupAt) return 999;
@@ -4699,9 +4811,9 @@ function fullBackupPayload() {
 }
 function meaningfulDatesSet() {
   const set = new Set();
-  (D.journal || []).forEach(j => { if (j.date) set.add(j.date); });
-  (D.daily || []).forEach(t => { if (t.date && (t.done || t.text)) set.add(t.date); });
-  (D.projects || []).forEach(p => { if (p.touched) set.add(p.touched); });
+  visibleJournalEntries().forEach(j => { if (j.date) set.add(j.date); });
+  visibleDailyTasks().forEach(t => { if (t.date && (t.done || t.text)) set.add(t.date); });
+  visibleProjects().forEach(p => { if (p.touched) set.add(p.touched); });
   return set;
 }
 function meaningfulStreak() {
@@ -4734,9 +4846,9 @@ function snapshotProject(project, note = '') {
   history.push(entry);
 }
 function hubContextSentence(active, done, archived) {
-  const total = D.projects.length;
+  const total = visibleProjects().length;
   const activeCount = active.length;
-  const lastTouch = [...(D.projects || [])]
+  const lastTouch = [...visibleProjects()]
     .map((p) => p.touched || p.created || '')
     .filter(Boolean)
     .sort()
@@ -4813,7 +4925,7 @@ function renderDayClosePanel() {
   const status = document.getElementById('day-close-status');
   if (!wrap || !status) return;
   const date = document.getElementById('jr-date')?.value || todayStr();
-  const current = (D.journal || []).find(x => String(x.id) === String(editingJournalId || ''));
+  const current = visibleJournalEntries().find(x => String(x.id) === String(editingJournalId || ''));
   const savedClose = current?.closeDay || {};
   const focus = getMorningFocus(date);
   const priorities = (focus.priorities || []).filter(Boolean);
@@ -4879,8 +4991,8 @@ function renderHub() {
   } else lb.classList.remove('show');
 
   // stats
-  const done = D.projects.filter(p => p.status === 'done').length;
-  const archived = D.projects.filter(p => p.status === 'archived').length;
+  const done = visibleProjects().filter(p => p.status === 'done').length;
+  const archived = visibleProjects().filter(p => p.status === 'archived').length;
   const contextSentence = hubContextSentence(active, done, archived);
   const detailsPage = D.settings.showAdvancedStats ? 'stats' : 'account';
   const detailsLabel = D.settings.showAdvancedStats ? 'Szczegóły' : 'Ustawienia';
@@ -4909,7 +5021,7 @@ function renderHub() {
   const slots = [];
   active.forEach(p => slots.push(projCardHTML(p)));
   // empty slots
-  const backlogCount = D.projects.filter(p => p.status === 'backlog').length;
+  const backlogCount = visibleProjects().filter(p => p.status === 'backlog').length;
   for (let i = active.length; i < lim; i++) {
     const hasIdeas = backlogCount > 0;
     slots.push(`<div class="empty-slot" data-action="${hasIdeas ? 'nav' : 'openNewProject'}"${hasIdeas ? ' data-page="backlog"' : ''}>
@@ -4922,7 +5034,7 @@ function renderHub() {
   grid.innerHTML = slots.join('');
 
   // backlog preview
-  const bl = D.projects.filter(p => p.status === 'backlog').slice(0,3);
+  const bl = visibleProjects().filter(p => p.status === 'backlog').slice(0,3);
   const blEl = document.getElementById('hub-backlog-preview');
   if (!bl.length) {
     blEl.innerHTML = `<div style="color:var(--text3);font-size:0.8rem;padding:12px 0;">Pomysły są puste — to lista rzeczy, do których możesz wrócić, gdy zwolni się slot.</div>`;
@@ -4938,7 +5050,7 @@ function prepDailyDefaults() {
   const pSel = document.getElementById('daily-task-project');
   if (pSel) {
     const current = pSel.value;
-    pSel.innerHTML = '<option value="">Brak</option>' + D.projects.filter(p => p.status !== 'archived').map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+    pSel.innerHTML = '<option value="">Brak</option>' + visibleProjects().filter(p => p.status !== 'archived').map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
     pSel.value = current || '';
   }
   syncTaskReminderForm('daily');
@@ -5009,7 +5121,7 @@ function ensureDailySelectedDate() {
 }
 function todayDailyTasks() {
   const selected = getDailySelectedDate();
-  return (D.daily || []).filter(t => t.date === selected).sort((a,b) =>
+  return visibleDailyTasks().filter(t => t.date === selected).sort((a,b) =>
     Number(a.done) - Number(b.done) ||
     (a.createdAt || '').localeCompare(b.createdAt || '')
   );
@@ -5020,7 +5132,7 @@ function ritualTimeLabel(value = 'any') {
   return 'dowolnie';
 }
 function activeRituals() {
-  return (D.rituals || []).filter(ritual => ritual.active !== false);
+  return visibleRituals().filter(ritual => ritual.active !== false);
 }
 function ritualDone(date, ritualId) {
   return !!D.ritualLog?.[date]?.[ritualId];
@@ -5060,7 +5172,7 @@ function toggleRitual(id) {
   renderDailyRituals();
 }
 function dailyTaskHTML(task) {
-  const project = task.projectId ? D.projects.find(p => p.id === task.projectId) : null;
+  const project = task.projectId ? visibleProjects().find(p => p.id === task.projectId) : null;
   const stateText = task.done ? 'zrobione' : 'otwarte';
   const isPriority = getDailyPriorityTask(task.date)?.id === task.id;
   return `<div class="daily-task ${task.done ? 'is-done' : ''}" data-task-id="${escapeHtml(task.id)}">
@@ -5143,7 +5255,7 @@ function addDailyTask() {
 }
 function fillDailyExamples() {
   const pickedDate = getDailySelectedDate();
-  if ((D.daily || []).some(t => t.date === pickedDate)) { toast('Lista na ten dzień nie jest pusta.'); return; }
+  if (visibleDailyTasks().some(t => t.date === pickedDate)) { toast('Lista na ten dzień nie jest pusta.'); return; }
   const samples = [
     ['must', 'Spakuj do auta bagaże'],
     ['quick', 'Wstaw pranie'],
@@ -5163,10 +5275,10 @@ function fillDailyExamples() {
   toast('Wstawiłem przykładową listę dnia.');
 }
 function toggleDailyTask(id) {
-  const task = (D.daily || []).find(t => String(t.id) === String(id));
+  const task = visibleDailyTasks().find(t => String(t.id) === String(id));
   if (!task) return;
   const date = task.date;
-  const beforeTasks = (D.daily || []).filter(t => t.date === date);
+  const beforeTasks = visibleDailyTasks().filter(t => t.date === date);
   const hadOpen = beforeTasks.some(t => !t.done);
   task.done = !task.done;
   if (task.done) {
@@ -5189,7 +5301,7 @@ function toggleDailyTask(id) {
   });
 }
 function setDailyReason(id) {
-  const task = (D.daily || []).find(t => String(t.id) === String(id));
+  const task = visibleDailyTasks().find(t => String(t.id) === String(id));
   if (!task) return;
   const next = prompt('Dlaczego to dziś nie idzie? Np. brak czasu / za duże / nie było potrzebne / czekam na coś', task.reason || '');
   if (next === null) return;
@@ -5198,19 +5310,21 @@ function setDailyReason(id) {
   renderDaily();
 }
 function deleteDailyTask(id) {
-  const task = (D.daily || []).find(t => String(t.id) === String(id));
+  const task = visibleDailyTasks().find(t => String(t.id) === String(id));
   if (!task) return;
   if (!isPhoneUI() && !confirm('Usunąć to zadanie z listy dnia?')) return;
   const removed = { ...task };
-  D.daily = (D.daily || []).filter(t => String(t.id) !== String(id));
-  save({ reason:'daily:delete' });
+  markEntityDeleted(task);
+  save({ entity:'dailyTask', id:task.id, reason:'daily:delete' });
   renderDaily();
   toast('Task usunięty.', {
     label: 'Cofnij',
     duration: 4000,
     onClick: () => {
       D.daily = D.daily || [];
-      if (!(D.daily || []).some(t => String(t.id) === String(removed.id))) D.daily.push(removed);
+      const existing = (D.daily || []).find(t => String(t.id) === String(removed.id));
+      if (existing) Object.assign(existing, removed, { deletedAt: '' });
+      else D.daily.push({ ...removed, deletedAt: '' });
       save({ entity:'dailyTask', id:removed.id, reason:'daily:restore' });
       renderCurrentPage();
       toast('Przywrócono task.');
@@ -5218,11 +5332,10 @@ function deleteDailyTask(id) {
   });
 }
 function clearDoneDailyTasks() {
-  const removedTasks = (D.daily || []).filter(t => t.date === todayStr() && t.done);
-  const before = (D.daily || []).length;
-  D.daily = (D.daily || []).filter(t => !(t.date === todayStr() && t.done));
-  const removed = before - D.daily.length;
-  save({ reason:'daily:clear-done' });
+  const removedTasks = visibleDailyTasks().filter(t => t.date === todayStr() && t.done);
+  removedTasks.forEach(markEntityDeleted);
+  const removed = removedTasks.length;
+  save({ entities: removedTasks.map(task => ({ entity:'dailyTask', id:task.id })), reason:'daily:clear-done' });
   renderDaily();
   toast(removed ? 'Usunąłem zrobione zadania z dziś.' : 'Nie ma zrobionych zadań do usunięcia.');
 }
@@ -5250,13 +5363,13 @@ function renderDailyPriorityCard(tasks) {
   box.innerHTML = `
     <div class="priority-kicker">Najważniejsze dziś</div>
     <div class="priority-main">${escapeHtml(priority.text)}</div>
-    <div class="priority-note">${priority.projectId ? `Projekt: ${escapeHtml((D.projects.find(project => project.id === priority.projectId) || {}).name || 'projekt')}.` : ''}</div>
+    <div class="priority-note">${priority.projectId ? `Projekt: ${escapeHtml((visibleProjects().find(project => project.id === priority.projectId) || {}).name || 'projekt')}.` : ''}</div>
     <div class="priority-pick-list">${openTasks.map(task => `<button class="priority-pick-btn ${priority.id === task.id ? 'on' : ''}" type="button" data-action="setDailyPriorityTask" data-id="${escapeHtml(task.id)}"><span>${priority.id === task.id ? '✓' : '○'}</span><span>${escapeHtml(task.text)}</span></button>`).join('')}</div>`;
 }
 function maybePromptDayClose(date, options = {}) {
   if (date !== todayStr()) return;
   if (document.getElementById('modal-day-close')?.classList.contains('open')) return;
-  const tasks = (D.daily || []).filter(task => task.date === date);
+  const tasks = visibleDailyTasks().filter(task => task.date === date);
   if (!tasks.length) return;
   if (tasks.some(task => !task.done)) return;
   if (D.settings.lastDayCloseDismissedDate === date) return;
@@ -5281,14 +5394,14 @@ function confirmDayClose() {
 }
 
 function taskCategory(task) {
-  const project = task.projectId ? D.projects.find(p => p.id === task.projectId) : null;
+  const project = task.projectId ? visibleProjects().find(p => p.id === task.projectId) : null;
   return project ? project.cat : ({ must:'codzienne must', quick:'małe szybkie', optional:'opcjonalne' }[task.lane] || 'inne');
 }
 function dateRangeTasks(days) {
   const start = new Date();
   start.setHours(0,0,0,0);
   start.setDate(start.getDate() - (days - 1));
-  return (D.daily || []).filter(t => new Date((t.date || todayStr()) + 'T00:00:00') >= start);
+  return visibleDailyTasks().filter(t => new Date((t.date || todayStr()) + 'T00:00:00') >= start);
 }
 function summarizeTaskCategories(tasks) {
   const map = {};
@@ -5309,20 +5422,20 @@ function prepUpcomingDefaults() {
   const pSel = document.getElementById('upcoming-task-project');
   if (pSel) {
     const cur = pSel.value;
-    pSel.innerHTML = '<option value="">Brak</option>' + D.projects.filter(p => p.status !== 'archived').map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+    pSel.innerHTML = '<option value="">Brak</option>' + visibleProjects().filter(p => p.status !== 'archived').map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
     pSel.value = cur || '';
   }
   syncTaskReminderForm('upcoming');
 }
 function upcomingTasks() {
   const today = todayStr();
-  return (D.daily || []).filter(t => (t.date || '') > today).sort((a,b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || ''));
+  return visibleDailyTasks().filter(t => (t.date || '') > today).sort((a,b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || '').localeCompare(b.createdAt || ''));
 }
 function tasksForDate(date) {
-  return (D.daily || []).filter(t => (t.date || '') === date).sort((a,b)=>Number(a.done)-Number(b.done) || (a.createdAt||'').localeCompare(b.createdAt||''));
+  return visibleDailyTasks().filter(t => (t.date || '') === date).sort((a,b)=>Number(a.done)-Number(b.done) || (a.createdAt||'').localeCompare(b.createdAt||''));
 }
 function upcomingTaskHTML(task) {
-  const project = task.projectId ? D.projects.find(p => p.id === task.projectId) : null;
+  const project = task.projectId ? visibleProjects().find(p => p.id === task.projectId) : null;
   return `<div class="daily-task">
     <div class="daily-task-main">
       <div class="daily-task-text ${task.done ? 'done' : ''}">${escapeHtml(task.text)}</div>
@@ -5394,7 +5507,7 @@ function jumpUpcomingDate(days) {
   renderUpcoming();
 }
 function moveTaskToToday(id) {
-  const task = (D.daily || []).find(t => String(t.id) === String(id));
+  const task = visibleDailyTasks().find(t => String(t.id) === String(id));
   if (!task) return;
   task.date = todayStr();
   task.rolledFrom = task.rolledFrom || 'plan';
@@ -5405,9 +5518,9 @@ function moveTaskToToday(id) {
 }
 
 function renderStartFinishStats() {
-  const started = D.projects.length;
-  const finished = D.projects.filter(p => p.status === 'done').length;
-  const archived = D.projects.filter(p => p.status === 'archived').length;
+  const started = visibleProjects().length;
+  const finished = visibleProjects().filter(p => p.status === 'done').length;
+  const archived = visibleProjects().filter(p => p.status === 'archived').length;
   const open = Math.max(0, started - finished - archived);
   const rate = started ? Math.round((finished / started) * 100) : 0;
   document.getElementById('start-finish-stats').innerHTML = `
@@ -5427,7 +5540,7 @@ function renderStats() {
     const summary = document.getElementById('stats-category-summary'); if (summary) summary.innerHTML = '';
     return;
   }
-  const all = D.daily || [];
+  const all = visibleDailyTasks();
   const done = all.filter(t => t.done).length;
   const added = all.length;
   const open = added - done;
@@ -5493,7 +5606,7 @@ function renderReview() {
   const weeklyEntry = latestWeekly ? `<div class="review-item"><strong>Ostatni zapis review</strong><div class="review-meta">${escapeHtml(latestWeekly.weekKey)}</div><div style="margin-top:8px;"><strong>Dowiezione:</strong> ${escapeHtml(latestWeekly.finished)}</div><div style="margin-top:8px;"><strong>Odpuszczam:</strong> ${escapeHtml(latestWeekly.dropped)}</div><div style="margin-top:8px;"><strong>Korekta:</strong> ${escapeHtml(latestWeekly.goal)}</div></div>` : '';
   document.getElementById('review-week').innerHTML = weeklyEntry + reviewHTML(week);
   document.getElementById('review-month').innerHTML = reviewHTML(month);
-  const open = (D.daily || []).filter(t => !t.done).slice().sort((a,b) => (a.date || '').localeCompare(b.date || '')).slice(0,10);
+  const open = visibleDailyTasks().filter(t => !t.done).slice().sort((a,b) => (a.date || '').localeCompare(b.date || '')).slice(0,10);
   document.getElementById('review-open-reasons').innerHTML = open.length ? open.map(t => `<div class="review-item"><strong>${escapeHtml(t.text)}</strong><div class="review-meta">${escapeHtml(t.date)} · ${escapeHtml(taskCategory(t))} · ${escapeHtml(t.reason || 'brak oznaczonego powodu')}</div></div>`).join('') : `<div class="review-item">Nie ma teraz otwartych małych zadań.</div>`;
 }
 function saveWeeklyReview() {
@@ -5579,7 +5692,7 @@ function renderActive() {
 // BACKLOG
 // ════════════════════════════════════════
 function renderBacklog() {
-  const bl = D.projects.filter(p => p.status === 'backlog');
+  const bl = visibleProjects().filter(p => p.status === 'backlog');
   document.getElementById('backlog-count').textContent = `${bl.length} pomysłów`;
   const el = document.getElementById('backlog-list');
   const empty = document.getElementById('backlog-empty');
@@ -5592,7 +5705,7 @@ function renderBacklog() {
 // ARCHIVE
 // ════════════════════════════════════════
 function renderArchive() {
-  const arc = D.projects.filter(p => p.status === 'archived').sort((a,b) => (b.archived||'').localeCompare(a.archived||''));
+  const arc = visibleProjects().filter(p => p.status === 'archived').sort((a,b) => (b.archived||'').localeCompare(a.archived||''));
   document.getElementById('archive-count').textContent = `${arc.length} projektów`;
   const el = document.getElementById('archive-list');
   const empty = document.getElementById('archive-empty');
@@ -5723,7 +5836,7 @@ function saveJournalEntry() {
 
   let changedId = editingJournalId;
   if (editingJournalId) {
-    const item = D.journal.find(x => String(x.id) === String(editingJournalId));
+    const item = visibleJournalEntries().find(x => String(x.id) === String(editingJournalId));
     if (item) Object.assign(item, payload, { createdAt: item.createdAt || payload.createdAt });
   } else {
     changedId = String(Date.now()) + Math.random().toString(36).slice(2,5);
@@ -5737,7 +5850,7 @@ function saveJournalEntry() {
 }
 
 function editJournalEntry(id) {
-  const item = D.journal.find(x => String(x.id) === String(id));
+  const item = visibleJournalEntries().find(x => String(x.id) === String(id));
   if (!item) return;
   editingJournalId = id;
   document.getElementById('jr-date').value = item.date || todayStr();
@@ -5760,11 +5873,11 @@ function editJournalEntry(id) {
 }
 
 function deleteJournalEntry(id) {
-  const item = D.journal.find(x => String(x.id) === String(id));
+  const item = visibleJournalEntries().find(x => String(x.id) === String(id));
   if (!item) return;
   if (!confirm('Usunąć ten wpis z dziennika?')) return;
-  D.journal = D.journal.filter(x => String(x.id) !== String(id));
-  save({ reason:'journal:delete' });
+  markEntityDeleted(item);
+  save({ entity:'journalEntry', id:item.id, reason:'journal:delete' });
   renderJournal();
   toast('Wpis usunięty.');
 }
@@ -5948,7 +6061,7 @@ function openNewProject(defaultStatus = 'active') {
 }
 
 function openEditProject(id) {
-  const p = D.projects.find(x => x.id === id);
+  const p = visibleProjects().find(x => x.id === id);
   if (!p) return;
   editingId = id;
   selectedCat = p.cat || 'Gry';
@@ -6015,7 +6128,7 @@ function saveProject() {
   }
   // check if promoting would exceed limit
   if (editingId) {
-    const old = D.projects.find(x => x.id === editingId);
+    const old = visibleProjects().find(x => x.id === editingId);
     if (old && old.status !== 'active' && status === 'active' && limitReached()) {
       toast(messageCopy('noSlot', { limit: D.settings.limit }));
       return;
@@ -6040,7 +6153,7 @@ function saveProject() {
 
   let changedId = editingId;
   if (editingId) {
-    const p = D.projects.find(x => x.id === editingId);
+    const p = visibleProjects().find(x => x.id === editingId);
     if (p) {
       const beforeProgress = Number(p.progress || 0);
       const beforeStatus = p.status;
@@ -6064,7 +6177,7 @@ function saveProject() {
 }
 
 function markDone(id) {
-  const p = D.projects.find(x => x.id === id);
+  const p = visibleProjects().find(x => x.id === id);
   if (!p) return;
   p.status = 'done';
   p.steps = projectSteps(p).map(step => ({ ...step, done: true }));
@@ -6079,7 +6192,7 @@ function markDone(id) {
   toast('🎉 Projekt ukończony! Dodaj go do ściany dumy →');
 }
 function toggleProjectStep(id, stepIndex) {
-  const project = D.projects.find(item => item.id === id);
+  const project = visibleProjects().find(item => item.id === id);
   if (!project) return;
   const steps = projectSteps(project);
   if (!steps[stepIndex]) return;
@@ -6094,7 +6207,7 @@ function toggleProjectStep(id, stepIndex) {
 
 function promoteToActive(id) {
   if (limitReached()) { toast(messageCopy('noSlot', { limit: D.settings.limit })); return; }
-  const p = D.projects.find(x => x.id === id);
+  const p = visibleProjects().find(x => x.id === id);
   if (!p) return;
   p.status = 'active';
   p.touched = todayStr();
@@ -6117,7 +6230,7 @@ function startArchive(id) {
   openModal('modal-archive');
 }
 function confirmArchive() {
-  const p = D.projects.find(x => x.id === archivingId);
+  const p = visibleProjects().find(x => x.id === archivingId);
   if (!p) return;
   p.status = 'archived';
   p.archived = todayStr();
@@ -6173,7 +6286,7 @@ function updateFeatureVisibility() {
 function renderRitualManager() {
   const wrap = document.getElementById('ritual-manage-list');
   if (!wrap) return;
-  const rituals = D.rituals || [];
+  const rituals = visibleRituals();
   if (!rituals.length) {
     wrap.innerHTML = '<div class="stat-note">Nie masz jeszcze rytuałów.</div>';
     return;
@@ -6220,7 +6333,7 @@ function addRitual() {
   toast('Dodano rytuał.');
 }
 function updateRitual(id) {
-  const ritual = (D.rituals || []).find(item => String(item.id) === String(id));
+  const ritual = visibleRituals().find(item => String(item.id) === String(id));
   if (!ritual) return;
   const text = document.getElementById(`ritual-text-${String(id)}`)?.value.trim() || '';
   if (!text) { toast('Nazwa rytuału nie może być pusta.'); return; }
@@ -6234,11 +6347,11 @@ function updateRitual(id) {
   toast('Zapisano rytuał.');
 }
 function deleteRitual(id) {
-  const ritual = (D.rituals || []).find(item => String(item.id) === String(id));
+  const ritual = visibleRituals().find(item => String(item.id) === String(id));
   if (!ritual) return;
   if (!confirm(`Usunąć rytuał "${ritual.text}"?`)) return;
-  D.rituals = (D.rituals || []).filter(item => String(item.id) !== String(id));
-  save({ reason:'ritual:delete' });
+  markEntityDeleted(ritual);
+  save({ entity:'ritual', id:ritual.id, reason:'ritual:delete' });
   renderAccount();
   if (document.querySelector('.page.on')?.id === 'page-daily') renderDaily();
   toast('Usunięto rytuał.');

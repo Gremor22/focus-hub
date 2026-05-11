@@ -62,6 +62,10 @@ export function loadAppStateApi() {
       migrateState,
       validateAndMigrateState,
       normalizeAppState,
+      mergeEntityCollection,
+      mergeAppState,
+      firstTimestampValue,
+      compareEntityVersions,
       applyChangeMetadata,
       metadataTimestamp
     };`
