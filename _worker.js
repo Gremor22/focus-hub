@@ -1,8 +1,39 @@
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
+const DEFAULT_API_BODY_LIMIT = 64 * 1024;
+const REMINDER_SYNC_BODY_LIMIT = 256 * 1024;
+const MAX_REMINDERS_PER_SYNC = 200;
+
+function requestId() {
+  return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function json(data, status = 200, id = '') {
+  const payload = id && data && typeof data === 'object' && !Array.isArray(data)
+    ? { ...data, requestId: data.requestId || id }
+    : data;
+  return new Response(JSON.stringify(payload), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      ...(id ? { 'x-request-id': id } : {})
+    }
   });
+}
+
+function apiError(error, status = 400, id = '', message = '') {
+  return json({ ok: false, error, ...(message ? { message } : {}) }, status, id);
+}
+
+function logRequestError(id, error, context = '') {
+  console.error(JSON.stringify({
+    requestId: id,
+    context,
+    error: String(error?.message || error || 'unknown_error')
+  }));
+}
+
+function bodyTooLarge(request, limit) {
+  const length = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(length) && length > limit;
 }
 
 async function readJson(request) {
@@ -18,12 +49,92 @@ function isDevelopment(env) {
   return env.ALLOW_DEBUG_ENDPOINTS === 'true' || mode === 'development' || mode === 'dev' || mode === 'local';
 }
 
-function unauthorized(error = 'unauthorized') {
-  return json({ ok: false, error }, 401);
+function isString(value, min = 1, max = 500) {
+  return typeof value === 'string' && value.trim().length >= min && value.length <= max;
 }
 
-function forbidden(error = 'forbidden') {
-  return json({ ok: false, error }, 403);
+function isBooleanOrMissing(value) {
+  return value == null || typeof value === 'boolean';
+}
+
+function isIsoDateTimeOrMissing(value) {
+  if (!value) return true;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time);
+}
+
+function isIsoDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function isTime(value) {
+  return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function validPage(value) {
+  return !value || ['daily', 'upcoming', 'journal', 'account', 'hub'].includes(String(value));
+}
+
+function validateDevicePayload(body) {
+  if (!isString(body?.userId, 1, 160)) return 'invalid_user_id';
+  if (!isString(body?.deviceId, 1, 160)) return 'invalid_device_id';
+  if (!isString(body?.token, 20, 4096)) return 'invalid_token';
+  if (body.platform != null && !isString(body.platform, 1, 80)) return 'invalid_platform';
+  if (body.permission != null && !['granted', 'denied', 'default'].includes(String(body.permission))) return 'invalid_permission';
+  if (!isBooleanOrMissing(body.active) || !isBooleanOrMissing(body.standalone) || !isBooleanOrMissing(body.badgeEnabled)) return 'invalid_boolean';
+  if (!isIsoDateTimeOrMissing(body.lastRegistrationAt)) return 'invalid_registration_time';
+  return '';
+}
+
+function validateUnregisterPayload(body) {
+  if (!isString(body?.userId, 1, 160)) return 'invalid_user_id';
+  if (!isString(body?.deviceId, 1, 160)) return 'invalid_device_id';
+  return '';
+}
+
+function validatePushTestPayload(body) {
+  const base = validateUnregisterPayload(body);
+  if (base) return base;
+  if (body.body != null && !isString(body.body, 0, 240)) return 'invalid_body';
+  if (body.tag != null && !isString(body.tag, 0, 120)) return 'invalid_tag';
+  return '';
+}
+
+function validateReminder(item) {
+  if (!item || typeof item !== 'object') return false;
+  if (!isString(item.id, 1, 180)) return false;
+  if (!isIsoDateTimeOrMissing(item.remindAt) || !item.remindAt) return false;
+  if (item.title != null && !isString(item.title, 0, 120)) return false;
+  if (item.body != null && !isString(item.body, 0, 240)) return false;
+  const data = item.data && typeof item.data === 'object' ? item.data : {};
+  if (!validPage(data.page)) return false;
+  if (data.url != null && !isString(data.url, 0, 240)) return false;
+  return true;
+}
+
+function validateJournalConfig(config) {
+  if (config == null) return '';
+  if (typeof config !== 'object' || Array.isArray(config)) return 'invalid_journal_config';
+  if (!isBooleanOrMissing(config.notificationsEnabled) || !isBooleanOrMissing(config.journalReminderEnabled) || !isBooleanOrMissing(config.journalReminderFollowupEnabled)) return 'invalid_journal_boolean';
+  if (config.journalReminderTime != null && !isTime(config.journalReminderTime)) return 'invalid_journal_time';
+  if (config.journalReminderFollowupTime != null && config.journalReminderFollowupTime !== '' && !isTime(config.journalReminderFollowupTime)) return 'invalid_journal_followup_time';
+  if (config.timezone != null && !isString(config.timezone, 1, 80)) return 'invalid_timezone';
+  if (config.journalDates != null && (!Array.isArray(config.journalDates) || config.journalDates.length > 500 || !config.journalDates.every(isIsoDate))) return 'invalid_journal_dates';
+  return '';
+}
+
+function validateReminderSyncPayload(body) {
+  if (!isString(body?.userId, 1, 160)) return 'invalid_user_id';
+  if (!Array.isArray(body?.reminders)) return 'invalid_reminders';
+  if (body.reminders.length > MAX_REMINDERS_PER_SYNC) return 'too_many_reminders';
+  if (!body.reminders.every(validateReminder)) return 'invalid_reminder_item';
+  return validateJournalConfig(body.journalConfig);
+}
+
+function validateTestJournalPayload(body) {
+  if (!isString(body?.userId, 1, 160)) return 'invalid_user_id';
+  if (body.phase != null && body.phase !== '' && !['first', 'second'].includes(String(body.phase))) return 'invalid_phase';
+  return '';
 }
 
 function base64UrlDecode(input = '') {
@@ -85,20 +196,26 @@ async function verifyFirebaseIdToken(token, env) {
   return { uid: payload.user_id || payload.sub, email: payload.email || '' };
 }
 
-async function requireAuthenticatedBody(request, env) {
+async function requireAuthenticatedBody(request, env, options = {}) {
+  const id = options.requestId || '';
+  const limit = options.maxBytes || DEFAULT_API_BODY_LIMIT;
+  if (bodyTooLarge(request, limit)) return { response: apiError('payload_too_large', 413, id) };
   const authHeader = request.headers.get('authorization') || '';
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!match) return { response: unauthorized('missing_authorization_header') };
+  if (!match) return { response: apiError('missing_authorization_header', 401, id) };
   const body = await readJson(request);
-  if (!body?.userId) return { response: json({ ok: false, error: 'invalid_payload' }, 400) };
+  if (!body || typeof body !== 'object' || Array.isArray(body) || !body.userId) {
+    return { response: apiError('invalid_payload', 400, id) };
+  }
   try {
     const auth = await verifyFirebaseIdToken(match[1], env);
     if (String(auth.uid) !== String(body.userId)) {
-      return { response: forbidden('user_id_mismatch') };
+      return { response: apiError('user_id_mismatch', 403, id) };
     }
     return { body, uid: auth.uid };
   } catch (error) {
-    return { response: unauthorized(String(error?.message || 'invalid_id_token')) };
+    logRequestError(id, error, 'auth');
+    return { response: apiError('invalid_id_token', 401, id) };
   }
 }
 
@@ -409,115 +526,117 @@ function journalEntryExists(config, localDate) {
   return new Set(config?.journalDates || []).has(localDate);
 }
 
+async function schedulerJson(stub, path, body, id, env) {
+  const response = await stub.fetch(`https://scheduler.internal${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-request-id': id },
+    body: JSON.stringify(body || {})
+  });
+  const payload = await response.json().catch(() => ({ ok: false, error: 'invalid_backend_response' }));
+  if (payload?.ok === false && response.status >= 500 && !isDevelopment(env)) {
+    logRequestError(id, payload.error || 'scheduler_error', path);
+    return apiError(payload.error === 'device_not_active' ? 'device_not_active' : 'backend_error', response.status, id);
+  }
+  return json(payload, response.status, id);
+}
+
 export default {
   async fetch(request, env) {
+    const id = requestId();
     const url = new URL(request.url);
-
-    if (url.pathname === '/api/push/config' && request.method === 'GET') {
-      return json({
-        ok: true,
-        vapidKey: env.FCM_VAPID_PUBLIC_KEY || ''
-      });
+    if (url.pathname.startsWith('/api/')) {
+      console.log(JSON.stringify({ requestId: id, method: request.method, path: url.pathname }));
     }
 
-    if (url.pathname === '/api/push/debug' && request.method === 'GET') {
-      if (!isDevelopment(env)) return json({ ok: false, error: 'not_found' }, 404);
-      const backend = getFcmBackendStatus(env);
-      return json({
-        ok: true,
-        backendAuthAvailable: backend.available,
-        backendAuthError: backend.error,
-        fcmProjectId: backend.projectId,
-        clientEmailPresent: backend.clientEmailPresent,
-        privateKeyPresent: backend.privateKeyPresent
-      });
-    }
-
-    if (url.pathname === '/api/push/register-device' && request.method === 'POST') {
-      const auth = await requireAuthenticatedBody(request, env);
-      if (auth.response) return auth.response;
-      const body = auth.body;
-      if (!body?.userId || !body?.deviceId || !body?.token) {
-        return json({ ok: false, error: 'invalid_payload' }, 400);
+    try {
+      if (url.pathname === '/api/push/config' && request.method === 'GET') {
+        return json({
+          ok: true,
+          vapidKey: env.FCM_VAPID_PUBLIC_KEY || ''
+        }, 200, id);
       }
-      const stub = schedulerStub(env, body.userId);
-      return stub.fetch('https://scheduler.internal/devices/register', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    }
 
-    if (url.pathname === '/api/push/unregister-device' && request.method === 'POST') {
-      const auth = await requireAuthenticatedBody(request, env);
-      if (auth.response) return auth.response;
-      const body = auth.body;
-      if (!body?.userId || !body?.deviceId) {
-        return json({ ok: false, error: 'invalid_payload' }, 400);
+      if (url.pathname === '/api/push/debug' && request.method === 'GET') {
+        if (!isDevelopment(env)) return apiError('not_found', 404, id);
+        const backend = getFcmBackendStatus(env);
+        return json({
+          ok: true,
+          backendAuthAvailable: backend.available,
+          backendAuthError: backend.error,
+          fcmProjectId: backend.projectId,
+          clientEmailPresent: backend.clientEmailPresent,
+          privateKeyPresent: backend.privateKeyPresent
+        }, 200, id);
       }
-      const stub = schedulerStub(env, body.userId);
-      return stub.fetch('https://scheduler.internal/devices/unregister', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    }
 
-    if (url.pathname === '/api/push/test' && request.method === 'POST') {
-      const auth = await requireAuthenticatedBody(request, env);
-      if (auth.response) return auth.response;
-      const body = auth.body;
-      if (!body?.userId || !body?.deviceId) {
-        return json({ ok: false, error: 'invalid_payload' }, 400);
+      if (url.pathname === '/api/push/register-device' && request.method === 'POST') {
+        const auth = await requireAuthenticatedBody(request, env, { requestId: id });
+        if (auth.response) return auth.response;
+        const body = auth.body;
+        const validationError = validateDevicePayload(body);
+        if (validationError) return apiError(validationError, 400, id);
+        const stub = schedulerStub(env, body.userId);
+        return schedulerJson(stub, '/devices/register', body, id, env);
       }
-      const stub = schedulerStub(env, body.userId);
-      return stub.fetch('https://scheduler.internal/test', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    }
 
-    if (url.pathname === '/api/reminders/sync' && request.method === 'POST') {
-      const auth = await requireAuthenticatedBody(request, env);
-      if (auth.response) return auth.response;
-      const body = auth.body;
-      if (!body?.userId || !Array.isArray(body?.reminders)) {
-        return json({ ok: false, error: 'invalid_payload' }, 400);
+      if (url.pathname === '/api/push/unregister-device' && request.method === 'POST') {
+        const auth = await requireAuthenticatedBody(request, env, { requestId: id });
+        if (auth.response) return auth.response;
+        const body = auth.body;
+        const validationError = validateUnregisterPayload(body);
+        if (validationError) return apiError(validationError, 400, id);
+        const stub = schedulerStub(env, body.userId);
+        return schedulerJson(stub, '/devices/unregister', body, id, env);
       }
-      const stub = schedulerStub(env, body.userId);
-      return stub.fetch('https://scheduler.internal/reminders/sync', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    }
 
-    if (url.pathname === '/api/reminders/debug' && request.method === 'POST') {
-      if (!isDevelopment(env)) return json({ ok: false, error: 'not_found' }, 404);
-      const auth = await requireAuthenticatedBody(request, env);
-      if (auth.response) return auth.response;
-      const body = auth.body;
-      if (!body?.userId) return json({ ok: false, error: 'invalid_payload' }, 400);
-      const stub = schedulerStub(env, body.userId);
-      return stub.fetch('https://scheduler.internal/reminders/debug', { method: 'POST' });
-    }
+      if (url.pathname === '/api/push/test' && request.method === 'POST') {
+        const auth = await requireAuthenticatedBody(request, env, { requestId: id });
+        if (auth.response) return auth.response;
+        const body = auth.body;
+        const validationError = validatePushTestPayload(body);
+        if (validationError) return apiError(validationError, 400, id);
+        const stub = schedulerStub(env, body.userId);
+        return schedulerJson(stub, '/test', body, id, env);
+      }
 
-    if (url.pathname === '/api/reminders/test-journal' && request.method === 'POST') {
-      if (!isDevelopment(env)) return json({ ok: false, error: 'not_found' }, 404);
-      const auth = await requireAuthenticatedBody(request, env);
-      if (auth.response) return auth.response;
-      const body = auth.body;
-      if (!body?.userId) return json({ ok: false, error: 'invalid_payload' }, 400);
-      const stub = schedulerStub(env, body.userId);
-      return stub.fetch('https://scheduler.internal/reminders/test-journal', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phase: body.phase || '' })
-      });
-    }
+      if (url.pathname === '/api/reminders/sync' && request.method === 'POST') {
+        const auth = await requireAuthenticatedBody(request, env, { requestId: id, maxBytes: REMINDER_SYNC_BODY_LIMIT });
+        if (auth.response) return auth.response;
+        const body = auth.body;
+        const validationError = validateReminderSyncPayload(body);
+        if (validationError) return apiError(validationError, 400, id);
+        const stub = schedulerStub(env, body.userId);
+        return schedulerJson(stub, '/reminders/sync', body, id, env);
+      }
 
-    return env.ASSETS.fetch(request);
+      if (url.pathname === '/api/reminders/debug' && request.method === 'POST') {
+        if (!isDevelopment(env)) return apiError('not_found', 404, id);
+        const auth = await requireAuthenticatedBody(request, env, { requestId: id });
+        if (auth.response) return auth.response;
+        const body = auth.body;
+        const validationError = validateUnregisterPayload(body);
+        if (validationError) return apiError(validationError, 400, id);
+        const stub = schedulerStub(env, body.userId);
+        return schedulerJson(stub, '/reminders/debug', {}, id, env);
+      }
+
+      if (url.pathname === '/api/reminders/test-journal' && request.method === 'POST') {
+        if (!isDevelopment(env)) return apiError('not_found', 404, id);
+        const auth = await requireAuthenticatedBody(request, env, { requestId: id });
+        if (auth.response) return auth.response;
+        const body = auth.body;
+        const validationError = validateTestJournalPayload(body);
+        if (validationError) return apiError(validationError, 400, id);
+        const stub = schedulerStub(env, body.userId);
+        return schedulerJson(stub, '/reminders/test-journal', { phase: body.phase || '' }, id, env);
+      }
+
+      if (url.pathname.startsWith('/api/')) return apiError('not_found', 404, id);
+      return env.ASSETS.fetch(request);
+    } catch (error) {
+      logRequestError(id, error, url.pathname);
+      return apiError('internal_error', 500, id);
+    }
   }
 };
 

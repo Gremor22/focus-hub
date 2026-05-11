@@ -3601,6 +3601,7 @@ async function registerAppServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
   try {
     swRegistration = await navigator.serviceWorker.register('./sw.js');
+    bindAppServiceWorkerUpdates(swRegistration);
     NOTIFICATION_RUNTIME.appServiceWorkerReady = true;
     return swRegistration;
   } catch (err) {
@@ -3610,6 +3611,34 @@ async function registerAppServiceWorker() {
   } finally {
     syncInstallUI();
   }
+}
+function bindAppServiceWorkerUpdates(registration) {
+  if (!registration || registration.datasetBound === '1') return;
+  registration.datasetBound = '1';
+  const notifyUpdate = () => showAppUpdateAvailable(registration);
+  if (registration.waiting) notifyUpdate();
+  registration.addEventListener('updatefound', () => {
+    const installing = registration.installing;
+    if (!installing) return;
+    installing.addEventListener('statechange', () => {
+      if (installing.state === 'installed' && navigator.serviceWorker.controller) notifyUpdate();
+    });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (APP_RUNTIME.reloadingForUpdate) return;
+    APP_RUNTIME.reloadingForUpdate = true;
+    window.location.reload();
+  });
+}
+function showAppUpdateAvailable(registration) {
+  toast('Dostępna nowa wersja Focus Hub. Odśwież aplikację.', {
+    label: 'Odśwież',
+    duration: 10000,
+    onClick: () => {
+      if (registration?.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      else window.location.reload();
+    }
+  });
 }
 async function registerMessagingServiceWorker() {
   if (!('serviceWorker' in navigator)) {
