@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.wrangler/
+coverage/
+
+# Existing production files are still mostly monolithic; format them deliberately in a later refactor sprint.
+index.html
+_worker.js
+storage.js
+sw.js
+firebase-messaging-sw.js
+scripts/*.mjs
+
+# Binary assets
+*.png

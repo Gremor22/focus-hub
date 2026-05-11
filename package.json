@@ -1,16 +1,29 @@
 {
   "name": "focus-hub",
   "private": true,
+  "type": "module",
   "version": "1.0.0",
   "description": "Focus Hub static app deployed to Cloudflare Pages",
   "scripts": {
     "build": "node scripts/build-assets.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "check": "npm run lint && npm run test && npm run build",
     "fcm:service-account": "node scripts/set-fcm-service-account.mjs",
-    "deploy": "npm run build && wrangler deploy",
-    "deploy:preview": "npm run build && wrangler deploy",
-    "deploy:prod": "npm run build && wrangler deploy"
+    "deploy": "npm run check && wrangler deploy",
+    "deploy:preview": "npm run check && wrangler deploy",
+    "deploy:prod": "npm run check && wrangler deploy"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.3.0",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
+    "vitest": "^4.1.6",
     "wrangler": "^4.11.1"
   }
 }
