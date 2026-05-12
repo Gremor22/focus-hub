@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export function loadAppStateApi() {
+  const stateModule = readFileSync(resolve(process.cwd(), 'state.js'), 'utf8')
+    .replace(/^export\s+/gm, '');
+  const renderModule = readFileSync(resolve(process.cwd(), 'render.js'), 'utf8')
+    .replace(/^export\s+/gm, '');
   const script = readFileSync(resolve(process.cwd(), 'app.js'), 'utf8');
 
   const withoutImports = script.replace(/^import .*$/gm, '');
@@ -20,6 +24,7 @@ export function loadAppStateApi() {
     const isMessagingSupported = async () => false;
     const onMessage = () => () => {};
     const createFocusHubStorage = () => ({});
+    const toast = () => {};
     const localStore = new Map();
     const localStorage = {
       getItem: (key) => localStore.has(key) ? localStore.get(key) : null,
@@ -53,6 +58,10 @@ export function loadAppStateApi() {
 
   return new Function(
     `${prelude}
+    ${stateModule}
+    const createRemoteSnapshotDecision = remoteSnapshotDecision;
+    const createLocalPushDecision = localPushDecision;
+    ${renderModule}
     ${stateOnly}
     return {
       CURRENT_SCHEMA_VERSION,
@@ -62,8 +71,8 @@ export function loadAppStateApi() {
       normalizeAppState,
       mergeEntityCollection,
       mergeAppState,
-      remoteSnapshotDecision,
-      localPushDecision,
+      remoteSnapshotDecision: appRemoteSnapshotDecision,
+      localPushDecision: appLocalPushDecision,
       syncStatusAfterRemoteWrite,
       syncStatusView,
       firstTimestampValue,

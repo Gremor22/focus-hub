@@ -2,6 +2,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, getIdToken } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 import { getMessaging, getToken, deleteToken, isSupported as isMessagingSupported, onMessage } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-messaging.js";
+import { bindActionDelegation as bindDelegatedActions } from "./actions.js";
+import { createRenderController } from "./render.js";
+import { createStateStore, localPushDecision as createLocalPushDecision, remoteSnapshotDecision as createRemoteSnapshotDecision, syncStatusAfterRemoteWrite, syncStatusView } from "./state.js";
 import { createFocusHubStorage } from "./storage.js";
 
 // ════════════════════════════════════════
@@ -509,21 +512,6 @@ let editingId = null;
 let archivingId = null;
 let selectedCat = 'Gry';
 let reminderTimers = new Map();
-const stateSubscribers = new Set();
-
-function getState() {
-  return D;
-}
-function subscribe(listener) {
-  if (typeof listener !== 'function') return () => {};
-  stateSubscribers.add(listener);
-  return () => stateSubscribers.delete(listener);
-}
-function notifyStateSubscribers(metadata = {}) {
-  stateSubscribers.forEach(listener => {
-    try { listener(D, metadata); } catch (error) { console.error('State subscriber failed', error); }
-  });
-}
 function touchEntity(state, target, id, at, deviceId) {
   if (!target) return;
   const update = (item) => {
@@ -563,19 +551,17 @@ function applyChangeMetadata(state, metadata = {}) {
   (metadata.entities || []).forEach(item => touchEntity(next, item.entity, item.id, at, deviceId));
   return next;
 }
-function setState(nextState, metadata = {}) {
-  D = applyChangeMetadata(nextState || defaultState(), metadata);
-  saveLocalCache({ skipNormalize: true });
-  pushStateToCloud(metadata.reason || 'save', { skipLocal: true });
-  notifyStateSubscribers(metadata);
-  if (metadata.render) renderCurrentPage();
-  return D;
-}
-function updateState(mutator, metadata = {}) {
-  const draft = clone(D);
-  const result = typeof mutator === 'function' ? mutator(draft) : draft;
-  return setState(result || draft, metadata);
-}
+const stateStore = createStateStore({
+  getCurrent: () => D,
+  setCurrent: (next) => { D = next; },
+  defaultState,
+  clone,
+  applyChangeMetadata,
+  saveLocalCache,
+  pushStateToCloud,
+  renderCurrentPage: () => renderCurrentPage()
+});
+const { setState } = stateStore;
 
 // ════════════════════════════════════════
 // FIREBASE INIT / RUNTIME
@@ -664,44 +650,11 @@ function ensureDisplayNameFromAuth(user = currentUser) {
 }
 function syncDocRef(uid) { return doc(fbDb, 'users', uid, 'app', 'state'); }
 function deviceDocRef(uid, deviceId) { return doc(fbDb, 'users', uid, 'devices', deviceId); }
-function stateHash(obj) { try { return JSON.stringify(obj); } catch (e) { return String(Date.now()); } }
-function remoteSnapshotDecision(currentState, incomingState, options = {}) {
-  const incomingHash = stateHash(incomingState);
-  const runtimeHash = stateHash(currentState);
-  const shouldApply = !!options.forceApply || incomingHash !== runtimeHash;
-  const nextState = shouldApply ? mergeAppState(currentState, incomingState) : currentState;
-  return {
-    incomingHash,
-    runtimeHash,
-    mergedHash: stateHash(nextState),
-    shouldApply,
-    shouldWriteRemote: false,
-    state: nextState
-  };
+function appRemoteSnapshotDecision(currentState, incomingState, options = {}) {
+  return createRemoteSnapshotDecision(currentState, incomingState, { ...options, mergeAppState });
 }
-function localPushDecision(state, remoteHash, pendingHash = '') {
-  const cleanState = normalizeAppState(clone(state));
-  const hash = stateHash(cleanState);
-  return {
-    cleanState,
-    hash,
-    shouldPush: hash !== remoteHash || !!pendingHash
-  };
-}
-function syncStatusAfterRemoteWrite(pendingHash, remoteHash) {
-  return pendingHash && pendingHash !== remoteHash
-    ? { mode: '', text: 'Synchronizowanie...' }
-    : { mode: 'ok', text: 'Zsynchronizowano' };
-}
-function syncStatusView(status) {
-  const views = {
-    local: { mode: '', text: 'Zapisano lokalnie' },
-    syncing: { mode: '', text: 'Synchronizowanie...' },
-    synced: { mode: 'ok', text: 'Zsynchronizowano' },
-    offline: { mode: 'bad', text: 'Brak połączenia' },
-    error: { mode: 'bad', text: 'Błąd synchronizacji' }
-  };
-  return views[status] || views.local;
+function appLocalPushDecision(state, remoteHash, pendingHash = '') {
+  return createLocalPushDecision(state, remoteHash, pendingHash, { clone, normalizeAppState });
 }
 let storageLayer = null;
 function storage() {
@@ -817,18 +770,7 @@ function save(metadata = {}) {
 // ════════════════════════════════════════
 // RENDER HELPERS
 // ════════════════════════════════════════
-function safeRender(fn, fallbackId) {
-  try { fn(); }
-  catch (e) {
-    console.error(e);
-    if (fallbackId) {
-      const el = document.getElementById(fallbackId);
-      if (el) el.innerHTML = `<div class="review-item">Wystąpił błąd renderowania: ${escapeHtml(e.message || 'nieznany błąd')}</div>`;
-    }
-    toast('Wystąpił błąd widoku. Odśwież stronę.');
-  }
-}
-function pageRenderers() {
+function pageRenderers(safeRender) {
   return {
     hub: () => safeRender(renderHub, 'hub-active'),
     daily: () => safeRender(renderDaily, 'must-list'),
@@ -865,20 +807,15 @@ function renderGlobalUI() {
   updateFeatureVisibility();
   syncInstallUI();
 }
-function renderPageContent(page = getCurrentPageId()) {
-  const render = pageRenderers()[page];
-  if (render) render();
-}
-function renderCurrentPage() {
-  renderGlobalUI();
-  renderPageContent();
-}
-function renderAll() {
-  Object.values(pageRenderers()).forEach(render => {
-    try { render(); } catch (e) { console.error(e); }
-  });
-  renderGlobalUI();
-}
+const renderController = createRenderController({
+  pageRenderers,
+  renderGlobalUI,
+  getCurrentPageId,
+  toast,
+  escapeHtml,
+  document
+});
+const { safeRender, renderCurrentPage, renderAll } = renderController;
 
 // ════════════════════════════════════════
 // THEME
@@ -1089,7 +1026,7 @@ async function pushStateToCloud(reason='save', options = {}) {
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     try {
-      const decision = localPushDecision(D, lastRemoteHash, APP_RUNTIME.pendingCloudHash);
+      const decision = appLocalPushDecision(D, lastRemoteHash, APP_RUNTIME.pendingCloudHash);
       if (!decision.shouldPush) {
         finishSyncStatus();
         return;
@@ -1119,7 +1056,7 @@ async function startCloudSyncForUser(user) {
     let firstSnapshotHandled = false;
     remoteUnsub = storage().loadRemote(user.uid, {
       onState: (incomingState) => {
-        const remoteDecision = remoteSnapshotDecision(D, incomingState, { forceApply: !firstSnapshotHandled });
+        const remoteDecision = appRemoteSnapshotDecision(D, incomingState, { forceApply: !firstSnapshotHandled });
         const incomingHash = remoteDecision.incomingHash;
         const shouldHydrateFromCloud = remoteDecision.shouldApply;
         lastRemoteHash = incomingHash;
@@ -4263,71 +4200,13 @@ const CLICK_ACTIONS = {
   exportFullBackup, saveProject, confirmArchive, savePride, saveWeeklyReview, dismissDayClose,
   confirmDayClose, renderDaily, renderUpcoming, renderDayClosePanel
 };
-function boolFromDataset(value) {
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  return undefined;
-}
 function bindActionDelegation() {
-  if (document.documentElement.dataset.actionDelegationBound === '1') return;
-  document.documentElement.dataset.actionDelegationBound = '1';
-  document.addEventListener('click', (event) => {
-    const el = event.target.closest('[data-action]');
-    if (!el) return;
-    const action = el.dataset.action;
-    if (el.dataset.stop === 'true' || action === 'stopPropagation') event.stopPropagation();
-    try {
-      if (action === 'stopPropagation') return;
-      if (action === 'nav') return nav(el.dataset.page || defaultLandingPage());
-      if (action === 'mobileNav') return mobileNav(el.dataset.page || defaultLandingPage());
-      if (action === 'openJournalAndFocus') { nav('journal'); focusJournalInput(); return; }
-      if (action === 'prefillFocusMobile') { nav('daily'); prefillMorningFocusFromTasks(); toggleMobileMenu(false); return; }
-      if (action === 'toggleMobileMenu') return toggleMobileMenu(boolFromDataset(el.dataset.force));
-      if (action === 'openNewProject') return openNewProject(el.dataset.status || undefined);
-      if (action === 'jumpUpcomingDate') return jumpUpcomingDate(Number(el.dataset.delta || 0));
-      if (action === 'closeModal') return closeModal(el.dataset.modal || '');
-      if (action === 'selectCat') return selectCat(el);
-      if (action === 'setThemePreset') return setThemePreset(el.dataset.value || 'lime');
-      if (action === 'startArchiveClose') { startArchive(el.dataset.id || ''); closeModal('modal-proj'); return; }
-      if (action === 'markDoneClose') { markDone(el.dataset.id || ''); closeModal('modal-proj'); return; }
-      if (['toggleRitual','toggleDailyTask','setDailyPriorityTask','setDailyReason','setTaskReminder','clearTaskReminder','deleteDailyTask','moveTaskToToday','editJournalEntry','deleteJournalEntry','openEditProject','markDone','startArchive','promoteToActive','updateRitual','deleteRitual'].includes(action)) {
-        return GLOBAL_ACTIONS[action]?.(el.dataset.id || '');
-      }
-      if (CLICK_ACTIONS[action]) return CLICK_ACTIONS[action]();
-    } catch (err) {
-      console.error(err);
-      toast('Nie udało się wykonać akcji.');
-    }
-  });
-  document.addEventListener('change', (event) => {
-    const el = event.target.closest('[data-action]');
-    if (!el) return;
-    const action = el.dataset.action;
-    try {
-      if (action === 'renderDaily') return renderDaily();
-      if (action === 'renderUpcoming') return renderUpcoming();
-      if (action === 'renderDayClosePanel') return renderDayClosePanel();
-      if (action === 'importFullBackup') return importFullBackup(event);
-      if (action === 'syncTaskReminderForm') return syncTaskReminderForm(el.dataset.prefix || '');
-      if (action === 'setAppMode') return setAppMode(el.value);
-      if (action === 'setProjectLimit') return setProjectLimit(el.value);
-      if (action === 'toggleSetting') return toggleSetting(el.dataset.key || '', !!el.checked);
-      if (action === 'setReminderSetting') {
-        const value = el.dataset.valueSource === 'checked' ? !!el.checked : el.value;
-        return setReminderSetting(el.dataset.key || '', value);
-      }
-      if (action === 'setThemeMode') return setThemeMode(el.value);
-      if (action === 'updateCustomTheme') return updateCustomTheme();
-      if (action === 'toggleSystemNotifications') return toggleSystemNotifications(!!el.checked);
-    } catch (err) {
-      console.error(err);
-      toast('Nie udało się zapisać ustawienia.');
-    }
-  });
-  document.addEventListener('input', (event) => {
-    const el = event.target.closest('[data-action]');
-    if (!el) return;
-    if (el.dataset.action === 'updateMoodMeter') updateMoodMeter(el.value);
+  return bindDelegatedActions({
+    document,
+    actions: GLOBAL_ACTIONS,
+    clickActions: CLICK_ACTIONS,
+    defaultLandingPage,
+    toast
   });
 }
 
