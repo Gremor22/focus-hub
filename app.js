@@ -664,6 +664,29 @@ function ensureDisplayNameFromAuth(user = currentUser) {
 function syncDocRef(uid) { return doc(fbDb, 'users', uid, 'app', 'state'); }
 function deviceDocRef(uid, deviceId) { return doc(fbDb, 'users', uid, 'devices', deviceId); }
 function stateHash(obj) { try { return JSON.stringify(obj); } catch (e) { return String(Date.now()); } }
+function remoteSnapshotDecision(currentState, incomingState, options = {}) {
+  const incomingHash = stateHash(incomingState);
+  const runtimeHash = stateHash(currentState);
+  const shouldApply = !!options.forceApply || incomingHash !== runtimeHash;
+  const nextState = shouldApply ? mergeAppState(currentState, incomingState) : currentState;
+  return {
+    incomingHash,
+    runtimeHash,
+    mergedHash: stateHash(nextState),
+    shouldApply,
+    shouldWriteRemote: false,
+    state: nextState
+  };
+}
+function localPushDecision(state, remoteHash, pendingHash = '') {
+  const cleanState = normalizeAppState(clone(state));
+  const hash = stateHash(cleanState);
+  return {
+    cleanState,
+    hash,
+    shouldPush: hash !== remoteHash || !!pendingHash
+  };
+}
 let storageLayer = null;
 function storage() {
   if (!storageLayer) {
@@ -753,7 +776,7 @@ function loadLocalCache() {
   ensureDisplayNameFromAuth();
 }
 function saveLocalCache(options = {}) {
-  if (D?.settings) D.settings.lastLocalSaveAt = new Date().toISOString();
+  if (D?.settings && options.touchLocalSave !== false) D.settings.lastLocalSaveAt = new Date().toISOString();
   if (!options.skipNormalize) D = normalizeAppState(D);
   D = storage().saveLocal(D);
   setSyncState(currentUser ? '' : (APP_RUNTIME.localMode ? 'bad' : ''), currentUser ? 'Zapisano lokalnie' : (APP_RUNTIME.localMode ? 'Brak połączenia' : 'Zapisano lokalnie'));
@@ -1040,15 +1063,14 @@ async function pushStateToCloud(reason='save', options = {}) {
   clearTimeout(syncTimer);
   syncTimer = setTimeout(async () => {
     try {
-      const cleanState = normalizeAppState(clone(D));
-      const hash = stateHash(cleanState);
-      if (hash === lastRemoteHash && !APP_RUNTIME.pendingCloudHash) {
+      const decision = localPushDecision(D, lastRemoteHash, APP_RUNTIME.pendingCloudHash);
+      if (!decision.shouldPush) {
         setSyncState('ok', 'Zsynchronizowano');
         return;
       }
-      APP_RUNTIME.pendingCloudHash = hash;
+      APP_RUNTIME.pendingCloudHash = decision.hash;
       setSyncState('', 'Synchronizowanie...');
-      await storage().saveRemote(currentUser.uid, cleanState, {
+      await storage().saveRemote(currentUser.uid, decision.cleanState, {
         updatedBy: currentUser.email || '',
         lastWriterDevice: D.settings.deviceId || ''
       });
@@ -1067,30 +1089,25 @@ async function startCloudSyncForUser(user) {
     let firstSnapshotHandled = false;
     remoteUnsub = storage().loadRemote(user.uid, {
       onState: (incomingState) => {
-        const incomingHash = stateHash(incomingState);
-        const runtimeHash = stateHash(D);
-        const shouldHydrateFromCloud = incomingHash !== runtimeHash || !firstSnapshotHandled;
+        const remoteDecision = remoteSnapshotDecision(D, incomingState, { forceApply: !firstSnapshotHandled });
+        const incomingHash = remoteDecision.incomingHash;
+        const shouldHydrateFromCloud = remoteDecision.shouldApply;
         lastRemoteHash = incomingHash;
         if (shouldHydrateFromCloud) {
-          const mergedState = mergeAppState(D, incomingState);
-          const mergedHash = stateHash(mergedState);
           suppressRemoteWrite = true;
-          D = mergedState;
+          D = remoteDecision.state;
           ensureDisplayNameFromAuth(user);
-          saveLocalCache();
+          saveLocalCache({ touchLocalSave: false });
           suppressRemoteWrite = false;
-          if (mergedHash !== incomingHash) {
-            pushStateToCloud('sync:merge', { skipLocal: true });
-          }
         }
         if (APP_RUNTIME.pendingCloudHash === incomingHash) {
           APP_RUNTIME.pendingCloudHash = '';
           D.settings.lastCloudSyncAt = new Date().toISOString();
-          saveLocalCache();
+          saveLocalCache({ touchLocalSave: false });
         }
         if (!APP_RUNTIME.pendingCloudHash && !D.settings.lastCloudSyncAt) {
           D.settings.lastCloudSyncAt = new Date().toISOString();
-          saveLocalCache();
+          saveLocalCache({ touchLocalSave: false });
         }
         setSyncState(APP_RUNTIME.pendingCloudHash ? '' : 'ok', APP_RUNTIME.pendingCloudHash ? 'Synchronizowanie...' : 'Zsynchronizowano');
         if (APP_RUNTIME.booted) renderCurrentPage();

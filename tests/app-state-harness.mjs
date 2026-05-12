@@ -62,6 +62,8 @@ export function loadAppStateApi() {
       normalizeAppState,
       mergeEntityCollection,
       mergeAppState,
+      remoteSnapshotDecision,
+      localPushDecision,
       firstTimestampValue,
       compareEntityVersions,
       applyChangeMetadata,
