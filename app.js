@@ -687,6 +687,11 @@ function localPushDecision(state, remoteHash, pendingHash = '') {
     shouldPush: hash !== remoteHash || !!pendingHash
   };
 }
+function syncStatusAfterRemoteWrite(pendingHash, remoteHash) {
+  return pendingHash && pendingHash !== remoteHash
+    ? { mode: '', text: 'Synchronizowanie...' }
+    : { mode: 'ok', text: 'Zsynchronizowano' };
+}
 let storageLayer = null;
 function storage() {
   if (!storageLayer) {
@@ -1074,7 +1079,8 @@ async function pushStateToCloud(reason='save', options = {}) {
         updatedBy: currentUser.email || '',
         lastWriterDevice: D.settings.deviceId || ''
       });
-      setSyncState('', 'Synchronizowanie...');
+      const status = syncStatusAfterRemoteWrite(APP_RUNTIME.pendingCloudHash, lastRemoteHash);
+      setSyncState(status.mode, status.text);
     } catch (e) {
       console.error(e);
       setSyncState('bad', navigator.onLine === false ? 'Brak połączenia' : 'Błąd synchronizacji');
