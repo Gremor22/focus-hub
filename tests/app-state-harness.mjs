@@ -2,9 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export function loadAppStateApi() {
-  const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
-  const script = html.match(/<script type="module">([\s\S]*)<\/script>/)?.[1];
-  if (!script) throw new Error('index_module_script_not_found');
+  const script = readFileSync(resolve(process.cwd(), 'app.js'), 'utf8');
 
   const withoutImports = script.replace(/^import .*$/gm, '');
   const stateOnly = withoutImports.slice(0, withoutImports.indexOf('\nconst GLOBAL_ACTIONS'));

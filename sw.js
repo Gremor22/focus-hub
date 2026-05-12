@@ -3,6 +3,8 @@ const CACHE_NAME = `focus-hub-shell-${CACHE_VERSION}`;
 const APP_SHELL = [
   './',
   './index.html',
+  './styles.css',
+  './app.js',
   './manifest.webmanifest',
   './apple-touch-icon.png',
   './icon-192.png',
