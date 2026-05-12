@@ -647,6 +647,7 @@ const APP_RUNTIME = {
   pendingCloudHash: '',
   syncMode: 'local',
   syncText: 'Zapisano lokalnie',
+  syncStatus: 'local',
   authResolve: null,
   authPromise: null
 };
@@ -691,6 +692,16 @@ function syncStatusAfterRemoteWrite(pendingHash, remoteHash) {
   return pendingHash && pendingHash !== remoteHash
     ? { mode: '', text: 'Synchronizowanie...' }
     : { mode: 'ok', text: 'Zsynchronizowano' };
+}
+function syncStatusView(status) {
+  const views = {
+    local: { mode: '', text: 'Zapisano lokalnie' },
+    syncing: { mode: '', text: 'Synchronizowanie...' },
+    synced: { mode: 'ok', text: 'Zsynchronizowano' },
+    offline: { mode: 'bad', text: 'Brak połączenia' },
+    error: { mode: 'bad', text: 'Błąd synchronizacji' }
+  };
+  return views[status] || views.local;
 }
 let storageLayer = null;
 function storage() {
@@ -744,6 +755,16 @@ function setSyncState(mode, text) {
   }
   updateUserChip();
 }
+function setSyncStatus(status) {
+  APP_RUNTIME.syncStatus = status;
+  const view = syncStatusView(status);
+  setSyncState(view.mode, view.text);
+}
+function finishSyncStatus() {
+  const view = syncStatusAfterRemoteWrite(APP_RUNTIME.pendingCloudHash, lastRemoteHash);
+  APP_RUNTIME.syncStatus = view.mode === 'ok' ? 'synced' : 'syncing';
+  setSyncState(view.mode, view.text);
+}
 function updateUserChip() {
   const accEmail = document.getElementById('account-email');
   const accSync = document.getElementById('account-sync-text');
@@ -784,7 +805,7 @@ function saveLocalCache(options = {}) {
   if (D?.settings && options.touchLocalSave !== false) D.settings.lastLocalSaveAt = new Date().toISOString();
   if (!options.skipNormalize) D = normalizeAppState(D);
   D = storage().saveLocal(D);
-  setSyncState(currentUser ? '' : (APP_RUNTIME.localMode ? 'bad' : ''), currentUser ? 'Zapisano lokalnie' : (APP_RUNTIME.localMode ? 'Brak połączenia' : 'Zapisano lokalnie'));
+  if (!options.skipSyncStatus) setSyncStatus(currentUser ? 'local' : (APP_RUNTIME.localMode ? 'offline' : 'local'));
   scheduleBadgeSync();
   scheduleReminderSync();
   scheduleReminderTimers();
@@ -977,7 +998,7 @@ async function logoutUser() {
 function continueLocalMode() {
   APP_RUNTIME.localMode = true;
   closeAuthOverlay();
-  setSyncState('bad', 'Brak połączenia');
+  setSyncStatus('offline');
   updateUserChip();
   resolveAuthLifecycle();
   if (APP_RUNTIME.booted) renderCurrentPage();
@@ -1030,10 +1051,10 @@ async function handleAuthStateChange(user) {
     ensureDisplayNameFromAuth();
     if (APP_RUNTIME.localMode) {
       closeAuthOverlay();
-      setSyncState('bad', 'Brak połączenia');
+      setSyncStatus('offline');
     } else {
       openAuthOverlay();
-      setSyncState('', 'Zapisano lokalnie');
+      setSyncStatus('local');
     }
     await unregisterCurrentDevice().catch(() => {});
   }
@@ -1045,7 +1066,7 @@ function initAuthLifecycle() {
   onAuthStateChanged(fbAuth, (user) => {
     handleAuthStateChange(user).catch((err) => {
       console.error(err);
-      setSyncState('bad', 'Błąd synchronizacji');
+      setSyncStatus('error');
       resolveAuthLifecycle();
     });
   });
@@ -1070,27 +1091,30 @@ async function pushStateToCloud(reason='save', options = {}) {
     try {
       const decision = localPushDecision(D, lastRemoteHash, APP_RUNTIME.pendingCloudHash);
       if (!decision.shouldPush) {
-        setSyncState('ok', 'Zsynchronizowano');
+        finishSyncStatus();
         return;
       }
       APP_RUNTIME.pendingCloudHash = decision.hash;
-      setSyncState('', 'Synchronizowanie...');
+      setSyncStatus('syncing');
       await storage().saveRemote(currentUser.uid, decision.cleanState, {
         updatedBy: currentUser.email || '',
         lastWriterDevice: D.settings.deviceId || ''
       });
-      const status = syncStatusAfterRemoteWrite(APP_RUNTIME.pendingCloudHash, lastRemoteHash);
-      setSyncState(status.mode, status.text);
+      lastRemoteHash = decision.hash;
+      APP_RUNTIME.pendingCloudHash = '';
+      D.settings.lastCloudSyncAt = new Date().toISOString();
+      saveLocalCache({ touchLocalSave: false, skipSyncStatus: true });
+      finishSyncStatus();
     } catch (e) {
       console.error(e);
-      setSyncState('bad', navigator.onLine === false ? 'Brak połączenia' : 'Błąd synchronizacji');
+      setSyncStatus(navigator.onLine === false ? 'offline' : 'error');
       toast('Nie udało się zsynchronizować zmian. Dane są tylko lokalnie.');
     }
   }, reason === 'immediate' ? 40 : 260);
 }
 async function startCloudSyncForUser(user) {
   stopCloudSync();
-  setSyncState('', 'Synchronizowanie...');
+  setSyncStatus('syncing');
   await new Promise((resolve) => {
     let firstSnapshotHandled = false;
     remoteUnsub = storage().loadRemote(user.uid, {
@@ -1103,19 +1127,19 @@ async function startCloudSyncForUser(user) {
           suppressRemoteWrite = true;
           D = remoteDecision.state;
           ensureDisplayNameFromAuth(user);
-          saveLocalCache({ touchLocalSave: false });
+          saveLocalCache({ touchLocalSave: false, skipSyncStatus: true });
           suppressRemoteWrite = false;
         }
         if (APP_RUNTIME.pendingCloudHash === incomingHash) {
           APP_RUNTIME.pendingCloudHash = '';
           D.settings.lastCloudSyncAt = new Date().toISOString();
-          saveLocalCache({ touchLocalSave: false });
+          saveLocalCache({ touchLocalSave: false, skipSyncStatus: true });
         }
         if (!APP_RUNTIME.pendingCloudHash && !D.settings.lastCloudSyncAt) {
           D.settings.lastCloudSyncAt = new Date().toISOString();
-          saveLocalCache({ touchLocalSave: false });
+          saveLocalCache({ touchLocalSave: false, skipSyncStatus: true });
         }
-        setSyncState(APP_RUNTIME.pendingCloudHash ? '' : 'ok', APP_RUNTIME.pendingCloudHash ? 'Synchronizowanie...' : 'Zsynchronizowano');
+        finishSyncStatus();
         if (APP_RUNTIME.booted) renderCurrentPage();
         if (!firstSnapshotHandled) {
           firstSnapshotHandled = true;
@@ -1133,7 +1157,7 @@ async function startCloudSyncForUser(user) {
       },
       onError: (err) => {
         console.error(err);
-        setSyncState('bad', navigator.onLine === false ? 'Brak połączenia' : 'Błąd synchronizacji');
+        setSyncStatus(navigator.onLine === false ? 'offline' : 'error');
         toast('Nie udało się zsynchronizować zmian. Dane są tylko lokalnie.');
         if (!firstSnapshotHandled) {
           firstSnapshotHandled = true;
@@ -4215,7 +4239,7 @@ Object.assign(globalThis, GLOBAL_ACTIONS);
 
 bootstrapApp().catch((err) => {
   console.error(err);
-  setSyncState('bad', 'Błąd synchronizacji');
+  setSyncStatus('error');
   openAuthOverlay();
 });
 
