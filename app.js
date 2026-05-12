@@ -4174,12 +4174,6 @@ const GLOBAL_ACTIONS = {
 Object.assign(window, GLOBAL_ACTIONS);
 Object.assign(globalThis, GLOBAL_ACTIONS);
 
-bootstrapApp().catch((err) => {
-  console.error(err);
-  setSyncStatus('error');
-  openAuthOverlay();
-});
-
 window.addEventListener('resize', () => {
   const current = document.querySelector('.page.on')?.id?.replace('page-','') || defaultLandingPage();
   updateMobileNav(current);
@@ -4209,6 +4203,12 @@ function bindActionDelegation() {
     toast
   });
 }
+
+bootstrapApp().catch((err) => {
+  console.error(err);
+  setSyncStatus('error');
+  openAuthOverlay();
+});
 
 // ════════════════════════════════════════
 // TOAST
