@@ -65,6 +65,7 @@ export function loadAppStateApi() {
       remoteSnapshotDecision,
       localPushDecision,
       syncStatusAfterRemoteWrite,
+      syncStatusView,
       firstTimestampValue,
       compareEntityVersions,
       applyChangeMetadata,

@@ -4,6 +4,12 @@ import { loadAppStateApi } from './app-state-harness.mjs';
 const api = loadAppStateApi();
 
 describe('sync status hotfix', () => {
+  it('maps central sync states to UI labels', () => {
+    expect(api.syncStatusView('syncing')).toEqual({ mode: '', text: 'Synchronizowanie...' });
+    expect(api.syncStatusView('synced')).toEqual({ mode: 'ok', text: 'Zsynchronizowano' });
+    expect(api.syncStatusView('error')).toEqual({ mode: 'bad', text: 'Błąd synchronizacji' });
+  });
+
   it('finishes as synced if the confirming snapshot already cleared pending write', () => {
     const status = api.syncStatusAfterRemoteWrite('', 'remote-hash');
 
