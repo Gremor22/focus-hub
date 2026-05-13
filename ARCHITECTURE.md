@@ -6,13 +6,16 @@ This document describes the current repo shape. It is not a target architecture.
 
 - `index.html` contains the static document, auth screen, page containers, modals, mobile navigation, and script/style includes.
 - `styles.css` contains the full visual system, responsive layout, mobile safe-area behavior, component styles, and reduced-motion rules.
-- `app.js` is still the main application module. It bootstraps Firebase, auth, sync, notification setup, navigation, page logic, render functions, and most product actions.
+- `app.js` is still the main application module. It bootstraps Firebase, auth, sync, notification setup, navigation, and remaining cross-domain product logic.
 - `state.js` contains the small state-store layer and sync-status helpers.
 - `render.js` contains the top-level render controller: safe render wrapper, page render dispatcher, and full render orchestration.
 - `actions.js` contains event delegation for `data-action` based UI actions.
 - `storage.js` contains the storage adapter for localStorage, Firestore load/save, and JSON backup import/export.
+- `projects.js` contains project-domain behavior: Hub project rendering, project cards, project modal CRUD, archive/promote/done flows, and project progress helpers.
+- `daily.js` contains daily-task behavior: Dziś rendering/actions, Plan/Nadchodzące task flows, rituals, morning focus, and day-close prompts.
+- `journal.js` contains journal behavior: form state, save/edit/delete, day-close panel, and text export/copy/download.
 
-The project has started modularization, but `app.js` remains the main source of product behavior.
+The project has started domain modularization, but `app.js` still owns important shared glue and several non-domain features.
 
 ## State Model
 
@@ -34,7 +37,7 @@ Important store helpers:
 - `updateState(mutator, metadata)` mutates a cloned draft and saves through `setState`.
 - `subscribe(listener)` registers state listeners.
 
-`app.js` still contains legacy direct mutations in some product handlers. New changes should prefer the central update flow.
+Some domain modules still use the existing direct state mutation style and then call the central save flow. New changes should prefer the central update flow where practical.
 
 ## Schema, Metadata, And Migrations
 

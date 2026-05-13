@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 const root = process.cwd();
 const dist = resolve(root, 'dist');
-const assets = ['index.html', 'styles.css', 'app.js', 'state.js', 'render.js', 'actions.js', 'storage.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'sw.js', 'firebase-messaging-sw.js'];
+const assets = ['index.html', 'styles.css', 'app.js', 'state.js', 'render.js', 'actions.js', 'storage.js', 'projects.js', 'daily.js', 'journal.js', 'manifest.webmanifest', 'icon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'sw.js', 'firebase-messaging-sw.js'];
 const cacheVersion = process.env.FOCUS_HUB_CACHE_VERSION || process.env.CF_PAGES_COMMIT_SHA || `${Date.now()}`;
 
 await rm(dist, { recursive: true, force: true });
