@@ -872,7 +872,7 @@ function syncThemeForm() {
   });
   const wrap = document.getElementById('theme-preset-list');
   if (!wrap) return;
-  wrap.innerHTML = Object.entries(THEME_PRESETS).map(([key, val]) => `<div class="theme-preset ${D.settings.themePreset===key?'active':''}" data-action="setThemePreset" data-value="${escapeHtml(key)}"><div class="theme-swatches"><span style="background:${val.accent}"></span><span style="background:${val.blue}"></span><span style="background:${val.amber}"></span><span style="background:${val.red}"></span></div><strong>${escapeHtml(val.label)}</strong></div>`).join('') + `<div class="theme-preset ${D.settings.themePreset==='custom'?'active':''}" data-action="setThemePreset" data-value="custom"><div class="theme-swatches"><span style="background:${D.settings.themeCustom.accent}"></span><span style="background:${D.settings.themeCustom.blue}"></span><span style="background:${D.settings.themeCustom.amber}"></span><span style="background:${D.settings.themeCustom.red}"></span></div><strong>Własny</strong></div>`;
+  wrap.innerHTML = Object.entries(THEME_PRESETS).map(([key, val]) => `<div class="theme-preset ${D.settings.themePreset===key?'active':''}" role="button" tabindex="0" aria-label="Wybierz preset kolorów ${escapeHtml(val.label)}" data-action="setThemePreset" data-value="${escapeHtml(key)}"><div class="theme-swatches"><span style="background:${val.accent}"></span><span style="background:${val.blue}"></span><span style="background:${val.amber}"></span><span style="background:${val.red}"></span></div><strong>${escapeHtml(val.label)}</strong></div>`).join('') + `<div class="theme-preset ${D.settings.themePreset==='custom'?'active':''}" role="button" tabindex="0" aria-label="Wybierz własne kolory" data-action="setThemePreset" data-value="custom"><div class="theme-swatches"><span style="background:${D.settings.themeCustom.accent}"></span><span style="background:${D.settings.themeCustom.blue}"></span><span style="background:${D.settings.themeCustom.amber}"></span><span style="background:${D.settings.themeCustom.red}"></span></div><strong>Własny</strong></div>`;
 }
 function setThemeMode(mode) { D.settings.themeMode = mode; applyThemeSettings(); save({ reason:'settings:theme' }); }
 function setThemePreset(preset) {
@@ -2714,7 +2714,7 @@ function renderHub() {
   const backlogCount = visibleProjects().filter(p => p.status === 'backlog').length;
   for (let i = active.length; i < lim; i++) {
     const hasIdeas = backlogCount > 0;
-    slots.push(`<div class="empty-slot" data-action="${hasIdeas ? 'nav' : 'openNewProject'}"${hasIdeas ? ' data-page="backlog"' : ''}>
+    slots.push(`<div class="empty-slot" role="button" tabindex="0" aria-label="${hasIdeas ? 'Otwórz pomysły' : 'Dodaj nowy projekt'}" data-action="${hasIdeas ? 'nav' : 'openNewProject'}"${hasIdeas ? ' data-page="backlog"' : ''}>
       <div class="empty-slot-icon">+</div>
       <div class="empty-slot-label">Wolny slot</div>
       <div class="empty-slot-note">${hasIdeas ? `Masz ${backlogCount} ${backlogCount === 1 ? 'pomysł' : 'pomysłów'} czekających — gotowy żeby jeden awansować?` : 'Masz miejsce na jeden konkretny projekt.'}</div>
@@ -3671,7 +3671,7 @@ function projCardHTML(p) {
   const visibleSteps = projectCardSteps(p);
   const progress = projectProgress(p);
   return `
-    <div class="proj-card ${isDone?'done-card':''}" style="--cat-color:${cc}" data-action="openEditProject" data-id="${escapeHtml(p.id)}">
+    <div class="proj-card ${isDone?'done-card':''}" style="--cat-color:${cc}" role="button" tabindex="0" aria-label="Otwórz projekt ${escapeHtml(p.name)}" data-action="openEditProject" data-id="${escapeHtml(p.id)}">
       <div class="proj-top">
         <div class="proj-icon">${escapeHtml(p.icon || '📌')}</div>
         <div class="proj-meta">
@@ -3705,7 +3705,7 @@ function projCardHTML(p) {
 
 function backlogItemHTML(p, compact) {
   return `
-    <div class="backlog-item" data-action="openEditProject" data-id="${escapeHtml(p.id)}">
+    <div class="backlog-item" role="button" tabindex="0" aria-label="Otwórz pomysł ${escapeHtml(p.name)}" data-action="openEditProject" data-id="${escapeHtml(p.id)}">
       <div class="bl-icon">${escapeHtml(p.icon || '💡')}</div>
       <div class="bl-name">${escapeHtml(p.name)}</div>
       ${!compact && p.why ? `<div class="bl-why">${escapeHtml(p.why)}</div>` : ''}
@@ -4139,14 +4139,63 @@ async function resetAppData() {
 // ════════════════════════════════════════
 // MODALS
 // ════════════════════════════════════════
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+const MODAL_FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+let lastModalTrigger = null;
+function openModal(id) {
+  const overlay = document.getElementById(id);
+  if (!overlay) return;
+  lastModalTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  const modal = overlay.querySelector('.modal');
+  const firstTarget = modal?.querySelector(MODAL_FOCUSABLE) || modal;
+  requestAnimationFrame(() => firstTarget?.focus?.({ preventScroll: true }));
+}
+function closeModal(id) {
+  const overlay = document.getElementById(id);
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+  if (lastModalTrigger && document.contains(lastModalTrigger)) {
+    lastModalTrigger.focus({ preventScroll: true });
+  }
+  lastModalTrigger = null;
+}
 document.querySelectorAll('.overlay').forEach(o => {
+  o.setAttribute('aria-hidden', 'true');
   o.addEventListener('click', e => {
     if (e.target !== o) return;
     if (o.dataset.locked === 'true') return;
-    o.classList.remove('open');
+    closeModal(o.id);
   });
+});
+document.addEventListener('keydown', (event) => {
+  const overlay = document.querySelector('.overlay.open');
+  if (!overlay) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeModal(overlay.id);
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const modal = overlay.querySelector('.modal');
+  if (!modal) return;
+  const focusable = [...modal.querySelectorAll(MODAL_FOCUSABLE)]
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (!focusable.length) {
+    event.preventDefault();
+    modal.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 });
 
 
