@@ -37,5 +37,15 @@ export default defineConfig({
       },
       testMatch: /.*\.mobile\.spec\.js/,
     },
+    {
+      name: 'webkit-smoke',
+      use: { ...devices['Desktop Safari'] },
+      testMatch: /.*\.webkit\.spec\.js/,
+    },
+    {
+      name: 'mobile-webkit-smoke',
+      use: { ...devices['iPhone 13'] },
+      testMatch: /.*\.webkit-mobile\.spec\.js/,
+    },
   ],
 });
