@@ -6,6 +6,12 @@ export function loadAppStateApi() {
     .replace(/^export\s+/gm, '');
   const renderModule = readFileSync(resolve(process.cwd(), 'render.js'), 'utf8')
     .replace(/^export\s+/gm, '');
+  const projectsModule = readFileSync(resolve(process.cwd(), 'projects.js'), 'utf8')
+    .replace(/^export\s+/gm, '');
+  const dailyModule = readFileSync(resolve(process.cwd(), 'daily.js'), 'utf8')
+    .replace(/^export\s+/gm, '');
+  const journalModule = readFileSync(resolve(process.cwd(), 'journal.js'), 'utf8')
+    .replace(/^export\s+/gm, '');
   const script = readFileSync(resolve(process.cwd(), 'app.js'), 'utf8');
 
   const withoutImports = script.replace(/^import .*$/gm, '');
@@ -62,6 +68,9 @@ export function loadAppStateApi() {
     const createRemoteSnapshotDecision = remoteSnapshotDecision;
     const createLocalPushDecision = localPushDecision;
     ${renderModule}
+    ${projectsModule}
+    ${dailyModule}
+    ${journalModule}
     ${stateOnly}
     return {
       CURRENT_SCHEMA_VERSION,

@@ -117,7 +117,10 @@ The Firebase web config and public VAPID key are client-side project configurati
 
 - `index.html` - app document, static shell, auth screen, page containers.
 - `styles.css` - full visual system and responsive layout.
-- `app.js` - app bootstrap and remaining product logic.
+- `app.js` - app bootstrap, Firebase/auth/sync glue, navigation, and remaining product logic.
+- `projects.js` - project cards, Hub project lists, project modal CRUD, archive/promote/done actions.
+- `daily.js` - Dziś, Plan/Nadchodzące task flow, rituals, morning focus, daily close prompts.
+- `journal.js` - journal form, journal entries, export preview/download, day-close panel.
 - `state.js` - state store helpers, sync decisions, sync status helpers.
 - `render.js` - top-level render controller.
 - `actions.js` - delegated DOM action router.
