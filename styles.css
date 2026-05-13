@@ -652,6 +652,7 @@ input[type=range] {
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   max-width: 280px;
   font-weight: 500;
+  pointer-events: none;
 }
 #toast.show { transform: translateY(0); opacity: 1; }
 #toast .toast-action {
@@ -662,7 +663,8 @@ input[type=range] {
   font:inherit;
   font-weight:800;
   cursor:pointer;
-  padding:0;
+  padding:8px 0;
+  pointer-events:auto;
 }
 
 .ob-pre { font-family: var(--mono); font-size: 0.65rem; color: var(--lime); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }

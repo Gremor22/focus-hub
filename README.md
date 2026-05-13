@@ -23,6 +23,18 @@ npm run build
 
 The build output is written to `dist/` and is intentionally ignored by git.
 
+## E2E Smoke Tests
+
+Playwright smoke tests cover the auth screen, local mode, core navigation, daily task creation, journal saving, project modal open/close, and mobile bottom navigation.
+
+```bash
+npm run test:e2e
+npm run test:e2e:headed
+npm run test:e2e:ui
+```
+
+The Playwright config starts a local static server automatically with `python3 -m http.server 4173`.
+
 For Cloudflare Worker development and deploys:
 
 ```bash
