@@ -928,9 +928,9 @@ async function registerUser() {
   catch (e) { showAuthError(e?.message || 'Nie udało się utworzyć konta.'); }
 }
 async function logoutUser() {
-  try { await unregisterCurrentDevice(); } catch (e) {}
+  try { await unregisterCurrentDevice(); } catch (_e) {}
   APP_RUNTIME.localMode = false;
-  try { await signOut(fbAuth); } catch (e) {}
+  try { await signOut(fbAuth); } catch (_e) {}
 }
 function continueLocalMode() {
   APP_RUNTIME.localMode = true;
@@ -944,33 +944,6 @@ function continueLocalMode() {
 window.loginUser = loginUser;
 window.registerUser = registerUser;
 window.continueLocalMode = continueLocalMode;
-
-function bindAuthButtons() {
-  const loginBtn = document.getElementById('auth-login-btn');
-  const registerBtn = document.getElementById('auth-register-btn');
-  const localBtn = document.getElementById('auth-local-btn');
-  if (loginBtn && loginBtn.dataset.boundAuthBtn !== '1') {
-    loginBtn.dataset.boundAuthBtn = '1';
-    loginBtn.addEventListener('click', (event) => {
-      event.preventDefault();
-      loginUser();
-    });
-  }
-  if (registerBtn && registerBtn.dataset.boundAuthBtn !== '1') {
-    registerBtn.dataset.boundAuthBtn = '1';
-    registerBtn.addEventListener('click', (event) => {
-      event.preventDefault();
-      registerUser();
-    });
-  }
-  if (localBtn && localBtn.dataset.boundAuthBtn !== '1') {
-    localBtn.dataset.boundAuthBtn = '1';
-    localBtn.addEventListener('click', (event) => {
-      event.preventDefault();
-      continueLocalMode();
-    });
-  }
-}
 
 async function handleAuthStateChange(user) {
   currentUser = user || null;
@@ -1014,7 +987,7 @@ function initAuthLifecycle() {
 // ════════════════════════════════════════
 function stopCloudSync() {
   if (remoteUnsub) {
-    try { remoteUnsub(); } catch (e) {}
+    try { remoteUnsub(); } catch (_e) {}
     remoteUnsub = null;
   }
   lastRemoteHash = '';
@@ -1246,7 +1219,6 @@ function localDateString(date = new Date(), timeZone = userTimeZone()) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 function isoDateOffset(baseStr, days) { const d = new Date((baseStr || todayStr()) + 'T12:00:00'); d.setDate(d.getDate() + days); return d.toISOString().slice(0,10); }
-function yesterdayStr() { return isoDateOffset(todayStr(), -1); }
 function currentHour() { return new Date().getHours(); }
 function currentWeekKey(date = new Date()) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -1254,9 +1226,6 @@ function currentWeekKey(date = new Date()) {
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
-}
-function toneText(firm, steady, gentle = steady) {
-  return steady || firm || gentle || '';
 }
 function messageCopy(key, vars = {}) {
   const direct = {
@@ -2325,9 +2294,6 @@ function daysSince(s) { if(!s) return 999; return Math.floor((Date.now() - new D
 function escapeHtml(str) {
   return String(str ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 }
-function escapeJsString(str) {
-  return String(str ?? '').replaceAll('\\', '\\\\').replaceAll("'", "\\'");
-}
 function hasAnyData() {
   return !!(visibleProjects().length || D.pride.length || visibleJournalEntries().length || visibleDailyTasks().length || visibleRituals().length);
 }
@@ -2348,9 +2314,6 @@ function backupStatusLabel() {
   if (d === 0) return 'Ostatni backup: dziś.';
   if (d === 1) return 'Ostatni backup: wczoraj.';
   return `Ostatni backup: ${d} dni temu.`;
-}
-function fullBackupPayload() {
-  return storage().exportBackup(D).payload;
 }
 function meaningfulDatesSet() {
   const set = new Set();
@@ -2725,7 +2688,7 @@ function confirmWipeAppData() {
   resetAppData();
 }
 async function resetAppData() {
-  try { await unregisterCurrentDevice({ clearToken: true }); } catch(e) {}
+  try { await unregisterCurrentDevice({ clearToken: true }); } catch(_e) {}
   resetProjectDraftState?.();
   D = defaultState();
   D.settings.deviceId = makeDeviceId();

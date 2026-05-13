@@ -202,7 +202,7 @@ function formatJournalExport() {
   const limit = Math.max(1, parseInt(document.getElementById('jr-export-limit')?.value || '7', 10));
   const entries = journalEntriesSorted().slice(0, limit);
   if (!entries.length) return 'Brak wpisów do eksportu.';
-  const blocks = entries.map((entry, idx) => {
+  const blocks = entries.map((entry) => {
     const parts = [
       `## ${entry.date || todayStr()} · nastrój ${entry.mood || 3}/5`,
       entry.win ? `Małe zwycięstwo: ${entry.win}` : '',
@@ -227,7 +227,7 @@ async function copyJournalExport() {
   try {
     await navigator.clipboard.writeText(text);
     toast('Skopiowano eksport dziennika do schowka.');
-  } catch (e) {
+  } catch (_e) {
     const box = document.getElementById('journal-export-preview');
     box.focus();
     box.select();

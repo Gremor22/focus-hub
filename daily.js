@@ -9,7 +9,7 @@ function dailyStateProxy(getState) {
 export function createDailyDomain(ctx) {
   const D = dailyStateProxy(ctx.getState);
   const {
-    document, window, todayStr, isoDateOffset, nowIso, escapeHtml, isPhoneUI,
+    document, todayStr, isoDateOffset, nowIso, escapeHtml, isPhoneUI,
     visibleDailyTasks, visibleProjects, visibleRituals, save, renderAll, renderCurrentPage,
     renderStartFinishStats, toast, openModal, closeModal, nav, focusJournalInput,
     reminderChipHTML, collectTaskReminderFromForm, resetTaskReminderForm, syncTaskReminderForm, markEntityDeleted
@@ -289,7 +289,7 @@ function renderDaily() {
   renderDailyRituals();
   renderMorningFocusPanel();
   renderStartFinishStats();
-  maybePromptDayClose(selected, { source:'render' });
+  maybePromptDayClose(selected);
 }
 function addDailyTask() {
   const text = document.getElementById('daily-task-text').value.trim();
@@ -422,7 +422,7 @@ function renderDailyPriorityCard(tasks) {
     <div class="priority-note">${priority.projectId ? `Projekt: ${escapeHtml((visibleProjects().find(project => project.id === priority.projectId) || {}).name || 'projekt')}.` : ''}</div>
     <div class="priority-pick-list">${openTasks.map(task => `<button class="priority-pick-btn ${priority.id === task.id ? 'on' : ''}" type="button" data-action="setDailyPriorityTask" data-id="${escapeHtml(task.id)}"><span>${priority.id === task.id ? '✓' : '○'}</span><span>${escapeHtml(task.text)}</span></button>`).join('')}</div>`;
 }
-function maybePromptDayClose(date, options = {}) {
+function maybePromptDayClose(date) {
   if (date !== todayStr()) return;
   if (document.getElementById('modal-day-close')?.classList.contains('open')) return;
   const tasks = visibleDailyTasks().filter(task => task.date === date);
