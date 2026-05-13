@@ -25,10 +25,13 @@ The build output is written to `dist/` and is intentionally ignored by git.
 
 ## E2E Smoke Tests
 
-Playwright smoke tests cover the auth screen, local mode, core navigation, daily task creation, journal saving, project modal open/close, and mobile bottom navigation.
+Playwright smoke tests cover the auth screen, local mode, core navigation, daily task creation, journal saving, project modal open/close, mobile bottom navigation, and a small WebKit smoke subset for Safari-like behavior.
 
 ```bash
+npx playwright install chromium webkit
 npm run test:e2e
+npm run test:e2e:chromium
+npm run test:e2e:webkit
 npm run test:e2e:headed
 npm run test:e2e:ui
 ```
