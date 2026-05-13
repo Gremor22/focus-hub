@@ -13,6 +13,15 @@ export function bindActionDelegation({
 }) {
   if (document.documentElement.dataset.actionDelegationBound === '1') return;
   document.documentElement.dataset.actionDelegationBound = '1';
+  const mobileBottomNav = document.getElementById('mobile-bottom-nav');
+
+  mobileBottomNav?.addEventListener('pointerup', (event) => {
+    const el = event.target.closest('[data-action="mobileNav"]');
+    if (!el) return;
+    event.preventDefault();
+    event.stopPropagation();
+    actions.mobileNav(el.dataset.page || defaultLandingPage());
+  });
 
   document.addEventListener('click', (event) => {
     const el = event.target.closest('[data-action]');
