@@ -3,6 +3,8 @@ node_modules/
 
 # Build output
 dist/
+playwright-report/
+test-results/
 
 # Cloudflare / Wrangler local state
 .wrangler/

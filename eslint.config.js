@@ -16,7 +16,7 @@ const workerGlobals = {
 
 export default [
   {
-    ignores: ['node_modules/**', 'dist/**', '.wrangler/**', 'coverage/**']
+    ignores: ['node_modules/**', 'dist/**', '.wrangler/**', 'coverage/**', 'playwright-report/**', 'test-results/**']
   },
   js.configs.recommended,
   {
@@ -51,7 +51,7 @@ export default [
     }
   },
   {
-    files: ['scripts/**/*.mjs', 'tests/**/*.js', 'tests/**/*.mjs', 'eslint.config.js', 'vitest.config.js'],
+    files: ['scripts/**/*.mjs', 'tests/**/*.js', 'tests/**/*.mjs', 'eslint.config.js', 'vitest.config.js', 'playwright.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
