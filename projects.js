@@ -172,7 +172,6 @@ function renderHub() {
   updateSidebar();
   const active = activeProjects();
   const lim = D.settings.limit;
-  const name = D.settings.name;
 
   // limit bar
   const lb = document.getElementById('hub-limit-bar');
@@ -324,7 +323,6 @@ function projCardHTML(p) {
   const dClass = touchDotClass(p.touched || p.created);
   const isDone = p.status === 'done';
   const daysLeft = p.due ? Math.max(0, Math.ceil((new Date(p.due) - new Date()) / 86400000)) : null;
-  const steps = projectSteps(p);
   const visibleSteps = projectCardSteps(p);
   const progress = projectProgress(p);
   return `
