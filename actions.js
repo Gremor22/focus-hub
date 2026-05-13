@@ -74,4 +74,12 @@ export function bindActionDelegation({
     if (!el) return;
     if (el.dataset.action === 'updateMoodMeter') actions.updateMoodMeter(el.value);
   });
+
+  document.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const el = event.target.closest('[data-action][role="button"]');
+    if (!el) return;
+    event.preventDefault();
+    el.click();
+  });
 }
