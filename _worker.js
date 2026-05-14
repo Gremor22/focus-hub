@@ -1,12 +1,20 @@
 const DEFAULT_API_BODY_LIMIT = 64 * 1024;
 const REMINDER_SYNC_BODY_LIMIT = 256 * 1024;
 const MAX_REMINDERS_PER_SYNC = 200;
+const RATE_LIMITS = {
+  '/api/push/test': { limit: 5, windowMs: 10 * 60 * 1000 },
+  '/api/reminders/sync': { limit: 60, windowMs: 60 * 60 * 1000 },
+  '/api/push/register-device': { limit: 20, windowMs: 60 * 60 * 1000 },
+  '/api/push/unregister-device': { limit: 20, windowMs: 60 * 60 * 1000 }
+};
+const RATE_LIMIT_MAX_KEYS = 10000;
+const rateLimitStore = new Map();
 
 function requestId() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function json(data, status = 200, id = '') {
+function json(data, status = 200, id = '', extraHeaders = {}) {
   const payload = id && data && typeof data === 'object' && !Array.isArray(data)
     ? { ...data, requestId: data.requestId || id }
     : data;
@@ -14,13 +22,14 @@ function json(data, status = 200, id = '') {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
+      ...extraHeaders,
       ...(id ? { 'x-request-id': id } : {})
     }
   });
 }
 
-function apiError(error, status = 400, id = '', message = '') {
-  return json({ ok: false, error, ...(message ? { message } : {}) }, status, id);
+function apiError(error, status = 400, id = '', message = '', extraHeaders = {}) {
+  return json({ ok: false, error, ...(message ? { message } : {}) }, status, id, extraHeaders);
 }
 
 function logRequestError(id, error, context = '') {
@@ -34,6 +43,62 @@ function logRequestError(id, error, context = '') {
 function bodyTooLarge(request, limit) {
   const length = Number(request.headers.get('content-length') || 0);
   return Number.isFinite(length) && length > limit;
+}
+
+export function rateLimitConfigForPath(pathname) {
+  return RATE_LIMITS[pathname] || null;
+}
+
+function pruneRateLimitStore(store, now) {
+  if (store.size <= RATE_LIMIT_MAX_KEYS) return;
+  for (const [key, bucket] of store.entries()) {
+    if (!bucket || bucket.resetAt <= now) store.delete(key);
+  }
+}
+
+export function checkRateLimit(store, key, config, now = Date.now()) {
+  if (!config) return { allowed: true, remaining: Infinity, resetAt: 0, retryAfterSeconds: 0 };
+  pruneRateLimitStore(store, now);
+  const existing = store.get(key);
+  const bucket = existing && existing.resetAt > now
+    ? existing
+    : { count: 0, resetAt: now + config.windowMs };
+  if (bucket.count >= config.limit) {
+    store.set(key, bucket);
+    const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    return { allowed: false, remaining: 0, resetAt: bucket.resetAt, retryAfterSeconds };
+  }
+  bucket.count += 1;
+  store.set(key, bucket);
+  return {
+    allowed: true,
+    remaining: Math.max(0, config.limit - bucket.count),
+    resetAt: bucket.resetAt,
+    retryAfterSeconds: 0
+  };
+}
+
+function rateLimitKey(uid, pathname) {
+  return `${pathname}:${String(uid || 'anonymous')}`;
+}
+
+function enforceRateLimit(uid, pathname, id) {
+  const config = rateLimitConfigForPath(pathname);
+  if (!config) return null;
+  const result = checkRateLimit(rateLimitStore, rateLimitKey(uid, pathname), config);
+  if (result.allowed) return null;
+  console.warn(JSON.stringify({ requestId: id, path: pathname, uid, error: 'rate_limited' }));
+  return rateLimitErrorResponse(id, result.retryAfterSeconds);
+}
+
+export function rateLimitErrorResponse(id, retryAfterSeconds) {
+  return apiError(
+    'rate_limited',
+    429,
+    id,
+    'Too many requests. Try again later.',
+    { 'retry-after': String(retryAfterSeconds) }
+  );
 }
 
 async function readJson(request) {
@@ -573,6 +638,8 @@ export default {
         const auth = await requireAuthenticatedBody(request, env, { requestId: id });
         if (auth.response) return auth.response;
         const body = auth.body;
+        const rateLimited = enforceRateLimit(auth.uid, url.pathname, id);
+        if (rateLimited) return rateLimited;
         const validationError = validateDevicePayload(body);
         if (validationError) return apiError(validationError, 400, id);
         const stub = schedulerStub(env, body.userId);
@@ -583,6 +650,8 @@ export default {
         const auth = await requireAuthenticatedBody(request, env, { requestId: id });
         if (auth.response) return auth.response;
         const body = auth.body;
+        const rateLimited = enforceRateLimit(auth.uid, url.pathname, id);
+        if (rateLimited) return rateLimited;
         const validationError = validateUnregisterPayload(body);
         if (validationError) return apiError(validationError, 400, id);
         const stub = schedulerStub(env, body.userId);
@@ -593,6 +662,8 @@ export default {
         const auth = await requireAuthenticatedBody(request, env, { requestId: id });
         if (auth.response) return auth.response;
         const body = auth.body;
+        const rateLimited = enforceRateLimit(auth.uid, url.pathname, id);
+        if (rateLimited) return rateLimited;
         const validationError = validatePushTestPayload(body);
         if (validationError) return apiError(validationError, 400, id);
         const stub = schedulerStub(env, body.userId);
@@ -603,6 +674,8 @@ export default {
         const auth = await requireAuthenticatedBody(request, env, { requestId: id, maxBytes: REMINDER_SYNC_BODY_LIMIT });
         if (auth.response) return auth.response;
         const body = auth.body;
+        const rateLimited = enforceRateLimit(auth.uid, url.pathname, id);
+        if (rateLimited) return rateLimited;
         const validationError = validateReminderSyncPayload(body);
         if (validationError) return apiError(validationError, 400, id);
         const stub = schedulerStub(env, body.userId);
