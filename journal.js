@@ -260,7 +260,7 @@ function renderJournal() {
       <div class="journal-item">
         <div class="journal-top">
           <div>
-            <div class="journal-date">${fmtShort(item.date)} <span style="color:var(--text3);font-family:var(--mono);font-size:0.72rem;">(${item.date})</span></div>
+            <div class="journal-date">${escapeHtml(fmtShort(item.date))} <span style="color:var(--text3);font-family:var(--mono);font-size:0.72rem;">(${escapeHtml(item.date)})</span></div>
             <div class="journal-meta">
               <span class="journal-pill">nastrój ${item.mood || 3}/5</span>
               ${item.createdAt ? `<span class="journal-pill">zapisano ${new Date(item.createdAt).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'})}</span>` : ''}

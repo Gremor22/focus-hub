@@ -12,6 +12,11 @@ function accountStateProxy(getState) {
   });
 }
 
+function safeHexColor(value, fallback) {
+  const color = String(value || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
 export function createAccountDomain(ctx) {
   const D = accountStateProxy(ctx.getState);
   const {
@@ -36,7 +41,12 @@ export function createAccountDomain(ctx) {
   function activeThemeColors() {
     const preset = THEME_PRESETS[D.settings.themePreset] || THEME_PRESETS.lime;
     const custom = D.settings.themePreset === 'custom' ? D.settings.themeCustom : preset;
-    return { accent: custom.accent, blue: custom.blue, amber: custom.amber, red: custom.red };
+    return {
+      accent: safeHexColor(custom.accent, THEME_PRESETS.lime.accent),
+      blue: safeHexColor(custom.blue, THEME_PRESETS.lime.blue),
+      amber: safeHexColor(custom.amber, THEME_PRESETS.lime.amber),
+      red: safeHexColor(custom.red, THEME_PRESETS.lime.red)
+    };
   }
   function currentThemeMode() {
     if ((D.settings.themeMode || 'auto') === 'auto') {
@@ -74,7 +84,8 @@ export function createAccountDomain(ctx) {
     });
     const wrap = document.getElementById('theme-preset-list');
     if (!wrap) return;
-    wrap.innerHTML = Object.entries(THEME_PRESETS).map(([key, val]) => `<div class="theme-preset ${D.settings.themePreset===key?'active':''}" role="button" tabindex="0" aria-label="Wybierz preset kolorów ${escapeHtml(val.label)}" data-action="setThemePreset" data-value="${escapeHtml(key)}"><div class="theme-swatches"><span style="background:${val.accent}"></span><span style="background:${val.blue}"></span><span style="background:${val.amber}"></span><span style="background:${val.red}"></span></div><strong>${escapeHtml(val.label)}</strong></div>`).join('') + `<div class="theme-preset ${D.settings.themePreset==='custom'?'active':''}" role="button" tabindex="0" aria-label="Wybierz własne kolory" data-action="setThemePreset" data-value="custom"><div class="theme-swatches"><span style="background:${D.settings.themeCustom.accent}"></span><span style="background:${D.settings.themeCustom.blue}"></span><span style="background:${D.settings.themeCustom.amber}"></span><span style="background:${D.settings.themeCustom.red}"></span></div><strong>Własny</strong></div>`;
+    const customColors = activeThemeColors();
+    wrap.innerHTML = Object.entries(THEME_PRESETS).map(([key, val]) => `<div class="theme-preset ${D.settings.themePreset===key?'active':''}" role="button" tabindex="0" aria-label="Wybierz preset kolorów ${escapeHtml(val.label)}" data-action="setThemePreset" data-value="${escapeHtml(key)}"><div class="theme-swatches"><span style="background:${val.accent}"></span><span style="background:${val.blue}"></span><span style="background:${val.amber}"></span><span style="background:${val.red}"></span></div><strong>${escapeHtml(val.label)}</strong></div>`).join('') + `<div class="theme-preset ${D.settings.themePreset==='custom'?'active':''}" role="button" tabindex="0" aria-label="Wybierz własne kolory" data-action="setThemePreset" data-value="custom"><div class="theme-swatches"><span style="background:${customColors.accent}"></span><span style="background:${customColors.blue}"></span><span style="background:${customColors.amber}"></span><span style="background:${customColors.red}"></span></div><strong>Własny</strong></div>`;
   }
   function setThemeMode(mode) { D.settings.themeMode = mode; applyThemeSettings(); save({ reason:'settings:theme' }); }
   function setThemePreset(preset) {
