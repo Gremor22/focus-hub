@@ -76,6 +76,7 @@ The Firebase web config in the client is public project configuration. Firebase 
 - verify Firebase ID tokens for protected endpoints,
 - validate payload shape, string lengths, booleans, dates, times, and allowed values,
 - enforce request-size limits,
+- rate limit sensitive push/reminder endpoints per authenticated user,
 - return consistent JSON errors,
 - include `requestId` in API responses and logs,
 - avoid exposing internal stack traces or raw secrets in public responses.
