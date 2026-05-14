@@ -116,6 +116,10 @@ function metadataTimestamp(...values) {
   }
   return nowIso();
 }
+function safeHexColor(value, fallback) {
+  const color = String(value || '').trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -384,10 +388,10 @@ function normalizeStateShape(state = D) {
     themeMode: ['auto','dark','light'].includes(rawSettings.themeMode) ? rawSettings.themeMode : 'auto',
     themePreset: rawSettings.themePreset || 'lime',
     themeCustom: {
-      accent: themeCustom.accent || '#c8f040',
-      blue: themeCustom.blue || '#40a8f0',
-      amber: themeCustom.amber || '#f0b840',
-      red: themeCustom.red || '#f04840'
+      accent: safeHexColor(themeCustom.accent, '#c8f040'),
+      blue: safeHexColor(themeCustom.blue, '#40a8f0'),
+      amber: safeHexColor(themeCustom.amber, '#f0b840'),
+      red: safeHexColor(themeCustom.red, '#f04840')
     },
     showAdvancedStats: rawSettings.showAdvancedStats ?? modeDefaults.showAdvancedStats,
     showMorningFocus: rawSettings.showMorningFocus ?? modeDefaults.showMorningFocus,
@@ -2204,7 +2208,12 @@ async function testJournalReminderNow(phase = 'first') {
 function fmtShort(s) { if(!s) return ''; return new Date(s).toLocaleDateString('pl-PL',{day:'numeric',month:'short'}); }
 function daysSince(s) { if(!s) return 999; return Math.floor((Date.now() - new Date(s)) / 86400000); }
 function escapeHtml(str) {
-  return String(str ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+  return String(str ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'", '&#39;');
 }
 function meaningfulDatesSet() {
   const set = new Set();

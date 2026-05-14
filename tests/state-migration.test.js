@@ -49,4 +49,26 @@ describe('state migrations and metadata', () => {
     expect(changed.daily[0].updatedAt).toBe('2026-05-11T09:30:00.000Z');
     expect(changed.daily[0].updatedByDevice).toBe('device-test');
   });
+
+  it('normalizes unsafe theme colors and escapes apostrophes for DOM rendering', () => {
+    const appState = loadAppStateApi();
+    const migrated = appState.validateAndMigrateState(
+      {
+        settings: {
+          themeCustom: {
+            accent: 'url(javascript:alert(1))',
+            blue: '#40a8f0',
+            amber: '#bad',
+            red: '#f04840'
+          }
+        }
+      },
+      'test'
+    );
+
+    expect(migrated.settings.themeCustom.accent).toBe('#c8f040');
+    expect(migrated.settings.themeCustom.blue).toBe('#40a8f0');
+    expect(migrated.settings.themeCustom.amber).toBe('#f0b840');
+    expect(appState.escapeHtml(`Damian's <task>`)).toBe('Damian&#39;s &lt;task&gt;');
+  });
 });

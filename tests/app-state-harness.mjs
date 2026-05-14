@@ -90,7 +90,8 @@ export function loadAppStateApi() {
       firstTimestampValue,
       compareEntityVersions,
       applyChangeMetadata,
-      metadataTimestamp
+      metadataTimestamp,
+      escapeHtml
     };`
   )();
 }
