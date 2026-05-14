@@ -65,6 +65,7 @@ Playwright smoke tests cover:
 - local mode entry,
 - core navigation,
 - daily task creation,
+- daily task trash/restore smoke flow,
 - journal saving,
 - project modal open/close,
 - mobile bottom navigation,

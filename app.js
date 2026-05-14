@@ -28,7 +28,7 @@ const fbApp = initializeApp(firebaseConfig);
 const fbAuth = getAuth(fbApp);
 const fbDb = getFirestore(fbApp);
 const APP_STORAGE_KEY = 'focushub_v1';
-const CURRENT_SCHEMA_VERSION = 4;
+const CURRENT_SCHEMA_VERSION = 5;
 const CAT_COLORS = {
   'Gry':'#c8f040','Nauka':'#40a8f0','Projekt':'#f0b840',
   'Kariera':'#a0f080','Zdrowie':'#f08040','Związek':'#f04880','Inne':'#8080f0'
@@ -48,7 +48,7 @@ const APP_MODES = {
   }
 };
 const LEGACY_MODE_MAP = { visionary: 'standard', executor: 'minimal', balancer: 'standard' };
-const PAGE_TITLES = { hub:'Hub', daily:'Dziś', upcoming:'Nadchodzące', active:'Aktywne', backlog:'Pomysły', archive:'Archiwum', pride:'Ściana dumy', journal:'Dziennik', stats:'Postęp', review:'Review', account:'Konto' };
+const PAGE_TITLES = { hub:'Hub', daily:'Dziś', upcoming:'Nadchodzące', active:'Aktywne', backlog:'Pomysły', archive:'Archiwum', pride:'Ściana dumy', journal:'Dziennik', stats:'Postęp', review:'Review', account:'Konto', trash:'Kosz' };
 
 // ════════════════════════════════════════
 // DEFAULT STATE / HYDRATION
@@ -94,6 +94,7 @@ function defaultState() {
     daily: [],
     rituals: [],
     ritualLog: {},
+    trashPurges: {},
     morningFocus: {},
     weeklyReview: [],
     dailyPriority: {}
@@ -160,6 +161,7 @@ function validateStateShape(raw, source = 'state') {
   validateObjectField(raw, 'morningFocus', source);
   validateObjectField(raw, 'dailyPriority', source);
   validateObjectField(raw, 'ritualLog', source);
+  validateObjectField(raw, 'trashPurges', source);
   ['projects','pride','journal','daily','rituals','weeklyReview'].forEach(key => validateArrayField(raw, key, source));
   (raw.projects || []).forEach(item => validateProjectShape(item, source));
   (raw.daily || []).forEach(item => validateDailyTaskShape(item, source));
@@ -228,6 +230,13 @@ function migrateV3StateToV4(state) {
     rituals: Array.isArray(state.rituals) ? state.rituals.map(keepDeletedAt) : []
   };
 }
+function migrateV4StateToV5(state) {
+  return {
+    ...state,
+    schemaVersion: 5,
+    trashPurges: isPlainObject(state.trashPurges) ? state.trashPurges : {}
+  };
+}
 function migrateState(raw) {
   const initial = raw == null ? defaultState() : clone(raw);
   validateStateShape(initial, 'pre-migration');
@@ -251,6 +260,10 @@ function migrateState(raw) {
   }
   if (version < 4) {
     next = migrateV3StateToV4(next);
+    version = 4;
+  }
+  if (version < 5) {
+    next = migrateV4StateToV5(next);
   }
   validateStateShape(next, 'post-migration');
   return next;
@@ -268,6 +281,7 @@ function hydrateState(raw) {
     daily: Array.isArray(src.daily) ? src.daily : base.daily,
     rituals: Array.isArray(src.rituals) ? src.rituals : base.rituals,
     ritualLog: src.ritualLog && typeof src.ritualLog === 'object' ? src.ritualLog : base.ritualLog,
+    trashPurges: src.trashPurges && typeof src.trashPurges === 'object' ? src.trashPurges : base.trashPurges,
     morningFocus: src.morningFocus && typeof src.morningFocus === 'object' ? src.morningFocus : base.morningFocus,
     weeklyReview: Array.isArray(src.weeklyReview) ? src.weeklyReview : base.weeklyReview,
     dailyPriority: src.dailyPriority && typeof src.dailyPriority === 'object' ? src.dailyPriority : base.dailyPriority
@@ -356,6 +370,11 @@ function normalizeStateShape(state = D) {
     const normalized = Object.fromEntries(Object.entries(raw).filter(([, done]) => !!done).map(([id]) => [String(id), true]));
     return [day, normalized];
   }).filter(([date]) => !!date)) : {};
+  S.trashPurges = (S.trashPurges && typeof S.trashPurges === 'object')
+    ? Object.fromEntries(Object.entries(S.trashPurges)
+      .map(([key, value]) => [String(key), optionalTimestamp(value)])
+      .filter(([, value]) => !!value))
+    : {};
   S.pride = Array.isArray(S.pride) ? S.pride : [];
   S.morningFocus = (S.morningFocus && typeof S.morningFocus === 'object') ? S.morningFocus : {};
   S.weeklyReview = Array.isArray(S.weeklyReview) ? S.weeklyReview.map((entry, idx) => ({
@@ -446,6 +465,45 @@ function markEntityDeleted(item) {
   item.updatedByDevice = D.settings?.deviceId || '';
   return stamp;
 }
+const TRASH_KIND_CONFIG = {
+  daily: { collection: 'daily', entity: 'dailyTask', label: 'Zadanie' },
+  journal: { collection: 'journal', entity: 'journalEntry', label: 'Dziennik' },
+  ritual: { collection: 'rituals', entity: 'ritual', label: 'Rytuał' }
+};
+function trashKey(kind, id) {
+  return `${String(kind)}:${String(id)}`;
+}
+function parseTrashKey(value) {
+  const raw = String(value || '');
+  const separator = raw.indexOf(':');
+  if (separator < 1) return { kind: '', id: '' };
+  return { kind: raw.slice(0, separator), id: raw.slice(separator + 1) };
+}
+function filterPurgedItems(kind, items = [], purges = {}) {
+  return (items || []).filter((item) => {
+    const purgedAt = validIsoDateTime(purges?.[trashKey(kind, item?.id)]);
+    if (!purgedAt) return true;
+    const itemTime = firstTimestampValue(item?.deletedAt, item?.updatedAt, item?.touched, item?.createdAt, item?.created);
+    return new Date(purgedAt).getTime() < itemTime;
+  });
+}
+function permanentlyRemoveTrashItemFromState(state, kind, id, at = nowIso()) {
+  const config = TRASH_KIND_CONFIG[kind];
+  if (!config || !state) return null;
+  const collection = Array.isArray(state[config.collection]) ? state[config.collection] : [];
+  const index = collection.findIndex(item => String(item.id) === String(id) && isDeleted(item));
+  if (index < 0) return null;
+  const [removed] = collection.splice(index, 1);
+  state[config.collection] = collection;
+  state.trashPurges = isPlainObject(state.trashPurges) ? state.trashPurges : {};
+  state.trashPurges[trashKey(kind, id)] = at;
+  if (kind === 'ritual' && isPlainObject(state.ritualLog)) {
+    Object.values(state.ritualLog).forEach((day) => {
+      if (day && typeof day === 'object') delete day[String(id)];
+    });
+  }
+  return removed;
+}
 function firstTimestampValue(...values) {
   for (const value of values) {
     const iso = validIsoDateTime(value);
@@ -493,18 +551,20 @@ function mergeSettings(localSettings = {}, remoteSettings = {}) {
 function mergeAppState(localState, remoteState) {
   const local = normalizeAppState(localState || defaultState());
   const remote = normalizeAppState(remoteState || defaultState());
+  const trashPurges = mergeObjectMap(local.trashPurges, remote.trashPurges);
   const merged = hydrateState({
     ...remote,
     ...local,
     schemaVersion: CURRENT_SCHEMA_VERSION,
     settings: mergeSettings(local.settings, remote.settings),
     projects: mergeEntityCollection(local.projects, remote.projects),
-    daily: mergeEntityCollection(local.daily, remote.daily),
-    journal: mergeEntityCollection(local.journal, remote.journal),
-    rituals: mergeEntityCollection(local.rituals, remote.rituals),
+    daily: filterPurgedItems('daily', mergeEntityCollection(local.daily, remote.daily), trashPurges),
+    journal: filterPurgedItems('journal', mergeEntityCollection(local.journal, remote.journal), trashPurges),
+    rituals: filterPurgedItems('ritual', mergeEntityCollection(local.rituals, remote.rituals), trashPurges),
     pride: mergeEntityCollection(local.pride, remote.pride),
     weeklyReview: mergeEntityCollection(local.weeklyReview, remote.weeklyReview),
     ritualLog: mergeObjectMap(local.ritualLog, remote.ritualLog),
+    trashPurges,
     morningFocus: mergeObjectMap(local.morningFocus, remote.morningFocus),
     dailyPriority: mergeObjectMap(local.dailyPriority, remote.dailyPriority)
   });
@@ -772,7 +832,8 @@ function pageRenderers(safeRender) {
     journal: () => safeRender(renderJournal, 'journal-list'),
     stats: () => safeRender(renderStats, 'stats-category-summary'),
     review: () => safeRender(renderReview, 'review-week'),
-    account: () => safeRender(renderAccount, 'account-email')
+    account: () => safeRender(renderAccount, 'account-email'),
+    trash: () => safeRender(renderTrash, 'trash-list')
   };
 }
 function renderMobileFocusPill() {
@@ -1108,10 +1169,111 @@ function nav(page) {
   const addBtn = document.getElementById('tb-add-btn');
   addBtn.style.display = !isPhoneUI() && ['hub','active','backlog'].includes(page) ? '' : 'none';
 
-  const renders = { hub: () => safeRender(renderHub, 'hub-active'), daily: () => safeRender(renderDaily, 'must-list'), upcoming: () => safeRender(renderUpcoming, 'upcoming-selected-list'), active: () => safeRender(renderActive, 'active-list'), backlog: () => safeRender(renderBacklog, 'backlog-list'), archive: () => safeRender(renderArchive, 'archive-list'), pride: () => safeRender(renderPride, 'pride-list'), journal: () => safeRender(renderJournal, 'journal-list'), stats: () => safeRender(renderStats, 'stats-category-summary'), review: () => safeRender(renderReview, 'review-week'), account: () => safeRender(renderAccount, 'account-email') };
+  const renders = { hub: () => safeRender(renderHub, 'hub-active'), daily: () => safeRender(renderDaily, 'must-list'), upcoming: () => safeRender(renderUpcoming, 'upcoming-selected-list'), active: () => safeRender(renderActive, 'active-list'), backlog: () => safeRender(renderBacklog, 'backlog-list'), archive: () => safeRender(renderArchive, 'archive-list'), pride: () => safeRender(renderPride, 'pride-list'), journal: () => safeRender(renderJournal, 'journal-list'), stats: () => safeRender(renderStats, 'stats-category-summary'), review: () => safeRender(renderReview, 'review-week'), account: () => safeRender(renderAccount, 'account-email'), trash: () => safeRender(renderTrash, 'trash-list') };
   if (renders[page]) renders[page]();
   if (isPhoneUI()) toggleMobileMenu(false);
   maybeOpenWeeklyReview();
+}
+
+function deletedTrashItems() {
+  return Object.entries(TRASH_KIND_CONFIG).flatMap(([kind, config]) => {
+    const collection = Array.isArray(D[config.collection]) ? D[config.collection] : [];
+    return collection
+      .filter(isDeleted)
+      .map(item => ({ kind, config, item }));
+  }).sort((a, b) => firstTimestampValue(b.item.deletedAt) - firstTimestampValue(a.item.deletedAt));
+}
+function trashItemTitle(kind, item) {
+  if (kind === 'daily') return item.text || 'Zadanie';
+  if (kind === 'journal') return `Wpis z ${item.date || 'dnia bez daty'}`;
+  if (kind === 'ritual') return item.text || 'Rytuał';
+  return 'Element';
+}
+function trashItemMeta(kind, item) {
+  if (kind === 'daily') {
+    const parts = [item.date, taskCategory(item), item.reason].filter(Boolean);
+    return parts.join(' · ');
+  }
+  if (kind === 'journal') {
+    return [item.win, item.gratitude, item.acceptance, item.note].find(Boolean) || 'Wpis dziennika';
+  }
+  if (kind === 'ritual') {
+    const labels = { morning: 'rano', evening: 'wieczór', any: 'dowolnie' };
+    return labels[item.timeOfDay] || 'dowolnie';
+  }
+  return '';
+}
+function renderTrash() {
+  const list = document.getElementById('trash-list');
+  const count = document.getElementById('trash-count');
+  if (!list) return;
+  const items = deletedTrashItems();
+  if (count) count.textContent = items.length ? `${items.length} ${items.length === 1 ? 'element' : 'elementy'}` : 'pusty';
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-slot" style="min-height:auto;padding:24px;"><div class="empty-slot-note">Kosz jest pusty.</div></div>';
+    return;
+  }
+  list.innerHTML = items.map(({ kind, config, item }) => {
+    const key = trashKey(kind, item.id);
+    const meta = trashItemMeta(kind, item);
+    return `<div class="review-item trash-item">
+      <div class="trash-item-head">
+        <span class="pill-mini">${escapeHtml(config.label)}</span>
+        <span class="review-meta">usunięto: ${escapeHtml(formatSavedAt(item.deletedAt))}</span>
+      </div>
+      <strong>${escapeHtml(trashItemTitle(kind, item))}</strong>
+      ${meta ? `<div class="review-meta">${escapeHtml(meta)}</div>` : ''}
+      <div class="modal-footer trash-actions">
+        <button class="btn btn-lime btn-sm" type="button" data-action="restoreTrashItem" data-id="${escapeHtml(key)}">Przywróć</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="permanentDeleteTrashItem" data-id="${escapeHtml(key)}">Usuń na stałe</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function findTrashItem(kind, id) {
+  const config = TRASH_KIND_CONFIG[kind];
+  if (!config) return null;
+  const collection = Array.isArray(D[config.collection]) ? D[config.collection] : [];
+  const item = collection.find(entry => String(entry.id) === String(id) && isDeleted(entry));
+  return item ? { config, item } : null;
+}
+function restoreTrashItem(value) {
+  const { kind, id } = parseTrashKey(value);
+  const found = findTrashItem(kind, id);
+  if (!found) {
+    toast('Nie znaleziono elementu w koszu.');
+    renderTrash();
+    return;
+  }
+  const stamp = nowIso();
+  found.item.deletedAt = '';
+  found.item.updatedAt = stamp;
+  found.item.updatedByDevice = D.settings?.deviceId || '';
+  if (D.trashPurges) delete D.trashPurges[trashKey(kind, id)];
+  save({ entity: found.config.entity, id, updatedAt: stamp, reason: `trash:restore:${kind}` });
+  renderAll();
+  toast('Przywrócono element.');
+}
+function permanentDeleteTrashItem(value) {
+  const { kind, id } = parseTrashKey(value);
+  const found = findTrashItem(kind, id);
+  if (!found) {
+    toast('Nie znaleziono elementu w koszu.');
+    renderTrash();
+    return;
+  }
+  const title = trashItemTitle(kind, found.item);
+  if (!confirm(`Usunąć na stałe: "${title}"? Tej operacji nie można cofnąć.`)) return;
+  const stamp = nowIso();
+  const removed = permanentlyRemoveTrashItemFromState(D, kind, id, stamp);
+  if (!removed) {
+    toast('Nie udało się usunąć elementu.');
+    renderTrash();
+    return;
+  }
+  save({ updatedAt: stamp, reason: `trash:purge:${kind}` });
+  renderAll();
+  toast('Usunięto na stałe.');
 }
 
 
@@ -2626,6 +2788,7 @@ const GLOBAL_ACTIONS = {
   resetJournalForm, renderJournalExport, copyJournalExport, downloadJournalExport, updateMoodMeter,
   editJournalEntry, deleteJournalEntry,
   startArchive, confirmArchive, toggleAutoRoll, selectCat, resetAppData, renderAccount, toggleProjectStep,
+  renderTrash, restoreTrashItem, permanentDeleteTrashItem,
   syncTaskReminderForm, setTaskReminder, clearTaskReminder,
   requestNotificationAccess, sendNotificationTest, sendVisibleNotificationTest, testJournalReminderNow, refreshJournalReminderDebug,
   addUpcomingTask, jumpUpcomingDate, moveTaskToToday, renderUpcoming, renderAll,
