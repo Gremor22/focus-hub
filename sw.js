@@ -12,6 +12,7 @@ const APP_SHELL = [
   './projects.js',
   './daily.js',
   './journal.js',
+  './account.js',
   './manifest.webmanifest',
   './apple-touch-icon.png',
   './icon-192.png',

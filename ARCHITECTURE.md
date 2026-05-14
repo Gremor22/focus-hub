@@ -14,8 +14,9 @@ This document describes the current repo shape. It is not a target architecture.
 - `projects.js` contains project-domain behavior: Hub project rendering, project cards, project modal CRUD, archive/promote/done flows, and project progress helpers.
 - `daily.js` contains daily-task behavior: Dziś rendering/actions, Plan/Nadchodzące task flows, rituals, morning focus, and day-close prompts.
 - `journal.js` contains journal behavior: form state, save/edit/delete, day-close panel, and text export/copy/download.
+- `account.js` contains account/settings behavior: account page rendering, app mode/project limit toggles, theme presets/custom colors, feature visibility, and JSON backup import/export UI glue.
 
-The project has started domain modularization, but `app.js` still owns important shared glue and several non-domain features.
+The project has started domain modularization, but `app.js` still owns important shared glue plus auth, sync, notification, Worker, PWA, and bootstrap internals.
 
 ## State Model
 
