@@ -42,7 +42,7 @@ export function bindActionDelegation({
       if (action === 'setThemePreset') return actions.setThemePreset(el.dataset.value || 'lime');
       if (action === 'startArchiveClose') { actions.startArchive(el.dataset.id || ''); actions.closeModal('modal-proj'); return; }
       if (action === 'markDoneClose') { actions.markDone(el.dataset.id || ''); actions.closeModal('modal-proj'); return; }
-      if (['toggleRitual','toggleDailyTask','setDailyPriorityTask','setDailyReason','setTaskReminder','clearTaskReminder','deleteDailyTask','moveTaskToToday','editJournalEntry','deleteJournalEntry','openEditProject','markDone','startArchive','promoteToActive','updateRitual','deleteRitual'].includes(action)) {
+      if (['toggleRitual','toggleDailyTask','setDailyPriorityTask','setDailyReason','setTaskReminder','clearTaskReminder','deleteDailyTask','moveTaskToToday','editJournalEntry','deleteJournalEntry','openEditProject','markDone','startArchive','promoteToActive','updateRitual','deleteRitual','restoreTrashItem','permanentDeleteTrashItem'].includes(action)) {
         return actions[action]?.(el.dataset.id || '');
       }
       if (clickActions[action]) return clickActions[action]();

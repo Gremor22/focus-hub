@@ -64,6 +64,7 @@
       <button type="button" class="nav-item" data-action="nav" data-page="stats"><span class="nav-dot"></span><span>Postęp</span></button>
       <button type="button" class="nav-item" data-action="nav" data-page="review"><span class="nav-dot"></span><span>Review</span></button>
       <button type="button" class="nav-item" data-action="nav" data-page="account"><span class="nav-dot"></span><span>Konto</span></button>
+      <button type="button" class="nav-item" data-action="nav" data-page="trash"><span class="nav-dot"></span><span>Kosz</span></button>
     </div>
     <div class="sidebar-slots">
       <div class="slot-label">Sloty aktywne</div>
@@ -707,6 +708,18 @@
         </div>
       </div>
 
+      <!-- TRASH PAGE -->
+      <div class="page" id="page-trash">
+        <div class="sh">
+          <div class="sh-title">Kosz</div>
+          <div class="sh-count" id="trash-count"></div>
+        </div>
+        <div class="journal-card">
+          <div class="sub-label">Usunięte elementy</div>
+          <div id="trash-list" class="trash-list"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -731,6 +744,7 @@
       <button class="mobile-menu-link" data-page="archive" type="button" data-action="mobileNav" data-page="archive">Archiwum</button>
       <button class="mobile-menu-link" data-page="pride" type="button" data-action="mobileNav" data-page="pride">Ściana dumy</button>
       <button class="mobile-menu-link" type="button" data-action="mobileNav" data-page="account">Konto</button>
+      <button class="mobile-menu-link" type="button" data-action="mobileNav" data-page="trash">Kosz</button>
       <button class="mobile-menu-link" type="button" data-action="mobileQuickAdd">+ Task na dziś</button>
       <button class="mobile-menu-link" type="button" data-action="prefillFocusMobile">Uzupełnij focus</button>
     </div>

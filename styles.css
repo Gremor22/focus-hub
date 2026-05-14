@@ -1011,6 +1011,9 @@ body.light-theme .modal { background: var(--bg2); }
 .review-item { background: var(--bg3); border:1px solid var(--line2); border-radius: var(--r2); padding:12px 14px; }
 .review-item strong { color: var(--text); }
 .review-meta { margin-top:6px; font-family:var(--mono); font-size:var(--font-xs); color:var(--text2); }
+.trash-list { display:grid; gap:10px; }
+.trash-item-head { display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+.trash-actions { margin-top:12px; justify-content:flex-start; }
 .pill-row { display:flex; gap:8px; flex-wrap:wrap; }
 .pill-mini { padding:7px 10px; border-radius:999px; background:var(--bg3); border:1px solid var(--line); font-size:var(--font-xs); color:var(--text2); min-height:32px; display:inline-flex; align-items:center; }
 .pill-mini.good { color: var(--lime); border-color: var(--lime-border); background: var(--lime-dim); }

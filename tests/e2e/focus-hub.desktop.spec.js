@@ -46,6 +46,30 @@ test.describe('Focus Hub desktop smoke', () => {
     await expect(page.locator('.daily-task-text', { hasText: taskText })).toBeVisible();
   });
 
+  test('moves a daily task to trash and restores it', async ({ page }) => {
+    await continueLocalMode(page);
+    await goDesktop(page, 'Dziś');
+
+    const taskText = `E2E kosz ${Date.now()}`;
+    await page.locator('#daily-task-text').fill(taskText);
+    await page.locator('#page-daily [data-action="addDailyTask"]').click();
+    const task = page.locator('.daily-task', { hasText: taskText });
+    await expect(task).toBeVisible();
+
+    page.once('dialog', dialog => dialog.accept());
+    await task.locator('[data-action="deleteDailyTask"]').click();
+    await expect(page.locator('.daily-task-text', { hasText: taskText })).not.toBeVisible();
+
+    await goDesktop(page, 'Kosz');
+    const trashItem = page.locator('.trash-item', { hasText: taskText });
+    await expect(trashItem).toBeVisible();
+    await trashItem.getByRole('button', { name: 'Przywróć' }).click();
+    await expect(trashItem).not.toBeVisible();
+
+    await goDesktop(page, 'Dziś');
+    await expect(page.locator('.daily-task-text', { hasText: taskText })).toBeVisible();
+  });
+
   test('saves a journal entry', async ({ page }) => {
     await continueLocalMode(page);
     await goDesktop(page, 'Dziennik');

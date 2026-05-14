@@ -49,6 +49,7 @@ The current model uses entity metadata for safer sync:
 - `updatedAt`
 - `updatedByDevice`
 - `deletedAt` for soft deletion where merge safety requires it
+- `trashPurges` for permanent-delete markers after an item is removed from the trash
 
 Key entity groups covered by migration/merge logic include:
 
@@ -57,7 +58,7 @@ Key entity groups covered by migration/merge logic include:
 - journal entries,
 - rituals.
 
-`deletedAt` marks removed entities so they do not reappear during multi-device sync. Render logic should hide deleted entities; merge logic keeps deletion tombstones long enough to prevent resurrection.
+`deletedAt` marks removed entities so they move out of normal views and into the trash. The current trash flow covers daily tasks, journal entries, and rituals. Restoring an item clears `deletedAt`; permanent delete removes the item and records a `trashPurges` marker so older copies do not reappear during sync. Projects still use the existing active/backlog/archive lifecycle rather than trash.
 
 ## Persistence And Sync
 
@@ -102,6 +103,7 @@ The sync merge is pragmatic and per-entity:
 - newer `updatedAt` wins,
 - local-only and remote-only entities are preserved,
 - `deletedAt` prevents deleted entities from coming back,
+- `trashPurges` prevents permanently deleted trash items from being restored by older snapshots,
 - tie-breaking is deterministic and uses existing metadata/fallback behavior.
 
 This is not a CRDT. It is a minimal, predictable merge layer for the current whole-state Firestore storage model.
