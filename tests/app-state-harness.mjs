@@ -12,6 +12,8 @@ export function loadAppStateApi() {
     .replace(/^export\s+/gm, '');
   const journalModule = readFileSync(resolve(process.cwd(), 'journal.js'), 'utf8')
     .replace(/^export\s+/gm, '');
+  const accountModule = readFileSync(resolve(process.cwd(), 'account.js'), 'utf8')
+    .replace(/^export\s+/gm, '');
   const script = readFileSync(resolve(process.cwd(), 'app.js'), 'utf8');
 
   const withoutImports = script.replace(/^import .*$/gm, '');
@@ -71,6 +73,7 @@ export function loadAppStateApi() {
     ${projectsModule}
     ${dailyModule}
     ${journalModule}
+    ${accountModule}
     ${stateOnly}
     return {
       CURRENT_SCHEMA_VERSION,
